@@ -32,9 +32,9 @@ export default function CandidateDashboard() {
 
     setStarting(true);
 
-    // For demo, use a placeholder application ID
+    // For demo, use the seeded application ID
     // In production, this would come from the candidate's applications list
-    const applicationId = '00000000-0000-0000-0000-000000000001';
+    const applicationId = '11111111-1111-1111-1111-111111111111';
 
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_AUTH_SERVICE_URL}/auth/cross-app-token`, {

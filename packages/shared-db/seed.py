@@ -59,22 +59,22 @@ async def seed():
             session.add(u)
         await session.commit()
 
-        # Create sample applications
+        # Create sample applications (with deterministic ID for demo flow)
         app1 = Application(
-            id=uuid4(),
+            id=uuid.UUID("11111111-1111-1111-1111-111111111111"),
             candidate_id=candidates[0].id,
             status=ApplicationStatus.APPLIED,
             created_at=datetime.utcnow(),
         )
         app2 = Application(
-            id=uuid4(),
+            id=uuid.UUID("22222222-2222-2222-2222-222222222222"),
             candidate_id=candidates[1].id,
             status=ApplicationStatus.ATTEMPTED,
             started_at=datetime.utcnow() - timedelta(hours=2),
             created_at=datetime.utcnow() - timedelta(days=1),
         )
         app3 = Application(
-            id=uuid4(),
+            id=uuid.UUID("33333333-3333-3333-3333-333333333333"),
             candidate_id=candidates[2].id,
             status=ApplicationStatus.SUBMITTED,
             started_at=datetime.utcnow() - timedelta(hours=3),
