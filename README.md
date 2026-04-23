@@ -213,11 +213,23 @@ locust -f load_test.py --host http://localhost:3000
 docker compose up
 ```
 
-### Vercel (Frontend Bonus)
-Each Next.js app can be deployed independently to Vercel:
-```bash
-cd apps/candidate-portal && vercel --prod
-```
+### Live URL (Cloud — Bonus)
+See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** for the complete guide to deploy with:
+- **Neon PostgreSQL** (cloud database)
+- **Upstash Redis** (cloud queue/cache — free tier, no credit card)
+- **Railway** (backend services)
+- **Vercel** (frontend apps)
+
+Quick overview of what you need:
+
+| Service | What You Need | Where to Get It |
+|---------|--------------|-----------------|
+| Database | `DATABASE_URL` | [neon.tech](https://neon.tech) → Create Project → Copy connection string → replace `postgresql://` with `postgresql+asyncpg://` |
+| Cache/Queue | `REDIS_URL` | [console.upstash.com](https://console.upstash.com) → Create Database → Copy `redis://` URL (NOT REST API) |
+| Backend | Railway project | [railway.app](https://railway.app) → Deploy from GitHub → Add env vars |
+| Frontend | Vercel project | [vercel.com](https://vercel.com) → Import repo → Set root directory → Add env vars |
+
+**Cost: $0** — all services offer generous free tiers sufficient for this assignment.
 
 ## Observability
 

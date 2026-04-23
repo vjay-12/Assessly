@@ -49,7 +49,8 @@ export default function CandidateDashboard() {
       const data = await res.json();
       if (res.ok) {
         // Redirect to assessment engine with cross-app token
-        const assessmentUrl = `${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/assessment?token=${encodeURIComponent(data.token)}`;
+        const assessmentEngineUrl = process.env.NEXT_PUBLIC_ASSESSMENT_ENGINE_URL || process.env.NEXT_PUBLIC_API_GATEWAY_URL;
+        const assessmentUrl = `${assessmentEngineUrl}/assessment?token=${encodeURIComponent(data.token)}`;
         window.location.href = assessmentUrl;
       } else {
         alert(data.detail || 'Failed to start assessment');
