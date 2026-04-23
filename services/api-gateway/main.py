@@ -7,6 +7,7 @@ from typing import Optional, List, AsyncGenerator
 
 import redis.asyncio as redis
 from fastapi import FastAPI, Depends, HTTPException, status, Query
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -23,6 +24,13 @@ from shared.models import (
 from config import settings
 
 app = FastAPI(title="Zetheta API Gateway", version="1.0.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 security = HTTPBearer(auto_error=False)
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
@@ -333,7 +341,16 @@ async def get_funnel(current_user: User = Depends(require_employer), db: AsyncSe
 
 
 @app.get("/api/events")
-async def events_stream(current_user: User = Depends(require_employer)):
+async def events_stream(token: Optional[str] = Query(None)):
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing token")
+    try:
+        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        if payload.get("role") != "employer":
+            raise HTTPException(status_code=403, detail="Employer access required")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
     async def event_generator() -> AsyncGenerator[str, None]:
         pubsub = redis_client.pubsub()
         await pubsub.subscribe("scores")

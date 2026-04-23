@@ -3,6 +3,7 @@ import uuid
 import json
 import asyncio
 import structlog
+import logging
 from datetime import datetime
 
 import redis.asyncio as redis
@@ -11,6 +12,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.database import AsyncSessionLocal, engine
 from shared.models import Base, Application, ApplicationStatus, Response, MCQQuestion, Score, PendingEvaluation
+
+# Configure structlog
+structlog.configure(
+    processors=[
+        structlog.stdlib.filter_by_level,
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.PositionalArgumentsFormatter(),
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+        structlog.processors.UnicodeDecoder(),
+        structlog.processors.JSONRenderer()
+    ],
+    context_class=dict,
+    logger_factory=structlog.stdlib.LoggerFactory(),
+    wrapper_class=structlog.stdlib.BoundLogger,
+    cache_logger_on_first_use=True,
+)
 
 logger = structlog.get_logger("evaluation-worker")
 
@@ -82,10 +101,6 @@ async def process_evaluation(application_id: str, db: AsyncSession, redis_client
     await redis_client.publish("scores", event)
 
     # 6. Remove from pending_evaluations if exists
-    await db.execute(
-        select(PendingEvaluation).where(PendingEvaluation.application_id == app_uuid)
-    )
-    # Cleanup handled by cascade or manual delete
     pending_result = await db.execute(
         select(PendingEvaluation).where(PendingEvaluation.application_id == app_uuid)
     )

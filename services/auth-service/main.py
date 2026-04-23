@@ -10,6 +10,7 @@ from typing import Optional
 import bcrypt
 import redis.asyncio as redis
 from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr
 from jose import jwt, JWTError
@@ -21,6 +22,13 @@ from shared.models import User, UserRole
 from config import settings
 
 app = FastAPI(title="Zetheta Auth Service", version="1.0.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 security = HTTPBearer(auto_error=False)
 
 # Redis client

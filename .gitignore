@@ -49,6 +49,9 @@ out/
 .DS_Store
 Thumbs.db
 
+# Notes
+notes/
+
 # Logs
 *.log
 npm-debug.log*
