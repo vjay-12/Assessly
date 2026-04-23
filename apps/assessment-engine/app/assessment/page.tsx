@@ -10,17 +10,23 @@ interface Question {
   difficulty: number;
 }
 
+interface SessionData {
+  session_token: string;
+  candidate_id: string;
+  application_id: string;
+}
+
 function AssessmentContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const token = searchParams.get('token');
 
-  const [sessionToken, setSessionToken] = useState('');
+  const [session, setSession] = useState<SessionData | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [flagged, setFlagged] = useState<Set<string>>(new Set());
-  const [timeLeft, setTimeLeft] = useState(30 * 60); // 30 minutes
+  const [timeLeft, setTimeLeft] = useState(30 * 60);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -31,7 +37,6 @@ function AssessmentContent() {
       return;
     }
 
-    // Redeem cross-app token
     fetch(`${process.env.NEXT_PUBLIC_AUTH_SERVICE_URL}/auth/redeem-cross-app`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -44,8 +49,7 @@ function AssessmentContent() {
           setLoading(false);
           return;
         }
-        setSessionToken(data.session_token);
-        // Fetch questions
+        setSession(data);
         return fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/questions`, {
           headers: { Authorization: `Bearer ${data.session_token}` },
         });
@@ -89,8 +93,9 @@ function AssessmentContent() {
   };
 
   const handleSubmit = () => {
+    if (!session) return;
     const payload = {
-      application_id: 'demo-app-id', // Should come from session
+      application_id: session.application_id,
       answers: Object.entries(answers).map(([qid, sel]) => ({ question_id: qid, selected_option: sel })),
     };
 
@@ -98,7 +103,7 @@ function AssessmentContent() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${sessionToken}`,
+        Authorization: `Bearer ${session.session_token}`,
       },
       body: JSON.stringify(payload),
     })
@@ -116,7 +121,6 @@ function AssessmentContent() {
 
   return (
     <div className="flex h-screen bg-slate-50">
-      {/* Left Sidebar */}
       <div className="w-64 border-r bg-white p-6">
         <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Questions</div>
         <div className="mt-4 grid grid-cols-4 gap-2">
@@ -146,9 +150,7 @@ function AssessmentContent() {
         </div>
       </div>
 
-      {/* Main Content */}
       <div className="flex flex-1 flex-col">
-        {/* Top Bar */}
         <div className="flex items-center justify-between border-b bg-white px-8 py-4">
           <div className="text-sm text-gray-500">
             Zetheta Assessment Engine <span className="mx-2">|</span> <span className="font-semibold text-gray-800">Distributed Systems</span>
@@ -163,7 +165,6 @@ function AssessmentContent() {
           </div>
         </div>
 
-        {/* Question Area */}
         <div className="flex-1 overflow-auto p-8">
           <div className="mx-auto max-w-3xl">
             <div className="mb-2 inline-block rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-600">
@@ -196,7 +197,6 @@ function AssessmentContent() {
           </div>
         </div>
 
-        {/* Bottom Bar */}
         <div className="flex items-center justify-between border-t bg-white px-8 py-4">
           <button
             onClick={toggleFlag}

@@ -3,19 +3,11 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-interface Application {
-  id: string;
-  status: string;
-  started_at: string | null;
-  submitted_at: string | null;
-  score: { percentage: number } | null;
-}
-
 export default function CandidateDashboard() {
   const router = useRouter();
-  const [user, setUser] = useState<{ name: string } | null>(null);
-  const [applications, setApplications] = useState<Application[]>([]);
+  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [starting, setStarting] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
@@ -24,41 +16,48 @@ export default function CandidateDashboard() {
       return;
     }
 
-    fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/candidates`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.length > 0) {
-          setUser({ name: data[0].name });
-        }
-      })
-      .catch(() => router.push('/login'));
-
-    // For demo, show hardcoded applications
-    setApplications([
-      { id: 'demo-1', status: 'applied', started_at: null, submitted_at: null, score: null },
-      { id: 'demo-2', status: 'attempted', started_at: new Date().toISOString(), submitted_at: null, score: null },
-    ]);
+    // Decode JWT to get user info (simplified)
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      setUser({ name: 'Candidate', email: '' });
+    } catch {
+      router.push('/login');
+    }
     setLoading(false);
   }, [router]);
 
-  const startAssessment = async (applicationId: string) => {
+  const startAssessment = async () => {
     const token = localStorage.getItem('access_token');
     if (!token) return;
 
-    const res = await fetch(`${process.env.NEXT_PUBLIC_AUTH_SERVICE_URL}/auth/cross-app-token`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ application_id: applicationId }),
-    });
+    setStarting(true);
 
-    const data = await res.json();
-    if (res.ok) {
-      window.location.href = `${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/assessment?token=${data.token}`;
+    // For demo, use a placeholder application ID
+    // In production, this would come from the candidate's applications list
+    const applicationId = '00000000-0000-0000-0000-000000000001';
+
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_AUTH_SERVICE_URL}/auth/cross-app-token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ application_id: applicationId }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        // Redirect to assessment engine with cross-app token
+        const assessmentUrl = `${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/assessment?token=${encodeURIComponent(data.token)}`;
+        window.location.href = assessmentUrl;
+      } else {
+        alert(data.detail || 'Failed to start assessment');
+        setStarting(false);
+      }
+    } catch {
+      alert('Network error');
+      setStarting(false);
     }
   };
 
@@ -76,29 +75,26 @@ export default function CandidateDashboard() {
             </div>
             <span className="font-bold text-slate-800">Zetheta</span>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-500">{user?.name || 'Candidate'}</span>
-            <button
-              onClick={() => { localStorage.clear(); router.push('/login'); }}
-              className="text-sm text-gray-500 hover:text-gray-700"
-            >
-              Logout
-            </button>
-          </div>
+          <button
+            onClick={() => { localStorage.clear(); router.push('/login'); }}
+            className="text-sm text-gray-500 hover:text-gray-700"
+          >
+            Logout
+          </button>
         </div>
       </nav>
 
       <main className="mx-auto max-w-6xl p-6">
         <div className="rounded-2xl bg-gradient-to-r from-slate-800 to-indigo-700 p-8 text-white">
-          <h1 className="text-2xl font-bold">Hello {user?.name || 'Alex'},</h1>
-          <p className="mt-1 text-white/80">Here are your assigned assessments. Maintain your high-precision streak.</p>
+          <h1 className="text-2xl font-bold">Hello {user?.name || 'Candidate'},</h1>
+          <p className="mt-1 text-white/80">Welcome to your assessment dashboard. You have an active assessment ready.</p>
         </div>
 
         <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
           {[
-            { label: 'Total Assigned', value: '2', icon: '📝' },
+            { label: 'Total Assigned', value: '1', icon: '📝' },
             { label: 'Completed', value: '0', icon: '✅' },
-            { label: 'Pending', value: '2', icon: '⏳' },
+            { label: 'Pending', value: '1', icon: '⏳' },
             { label: 'Average Score', value: '—', icon: '📊' },
           ].map((stat) => (
             <div key={stat.label} className="rounded-2xl bg-white p-6 shadow-sm">
@@ -111,41 +107,24 @@ export default function CandidateDashboard() {
 
         <h2 className="mt-10 text-xl font-bold">Active Assessments</h2>
         <div className="mt-4 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {applications.map((app) => (
-            <div key={app.id} className="rounded-2xl bg-white p-6 shadow-sm">
-              <div className="flex items-center justify-between">
-                <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-600">MCQ</span>
-                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                  app.status === 'applied' ? 'bg-amber-50 text-amber-600' :
-                  app.status === 'attempted' ? 'bg-blue-50 text-blue-600' :
-                  'bg-green-50 text-green-600'
-                }`}>
-                  {app.status.toUpperCase()}
-                </span>
-              </div>
-              <h3 className="mt-3 font-semibold">Distributed Systems Assessment</h3>
-              <div className="mt-2 space-y-1 text-sm text-gray-500">
-                <p>📝 10 Questions</p>
-                <p>⏱ 30 mins</p>
-              </div>
-              {app.status === 'applied' && (
-                <button
-                  onClick={() => startAssessment(app.id)}
-                  className="mt-4 w-full rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
-                >
-                  Start Assessment
-                </button>
-              )}
-              {app.status === 'attempted' && (
-                <button
-                  onClick={() => startAssessment(app.id)}
-                  className="mt-4 w-full rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
-                >
-                  Continue Assessment
-                </button>
-              )}
+          <div className="rounded-2xl bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-600">MCQ</span>
+              <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-600">PENDING</span>
             </div>
-          ))}
+            <h3 className="mt-3 font-semibold">Distributed Systems Assessment</h3>
+            <div className="mt-2 space-y-1 text-sm text-gray-500">
+              <p>📝 10 Questions</p>
+              <p>⏱ 30 mins</p>
+            </div>
+            <button
+              onClick={startAssessment}
+              disabled={starting}
+              className="mt-4 w-full rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {starting ? 'Starting...' : 'Start Assessment'}
+            </button>
+          </div>
         </div>
       </main>
     </div>

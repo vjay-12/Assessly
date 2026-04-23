@@ -12,31 +12,37 @@ interface FunnelData {
 export default function EmployerDashboard() {
   const [funnel, setFunnel] = useState<FunnelData>({ applied: 0, attempted: 0, submitted: 0, evaluated: 0 });
   const [live, setLive] = useState(false);
+  const [activities, setActivities] = useState<any[]>([]);
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
     if (!token) return;
 
-    // Fetch funnel data
     fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/analytics/funnel`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
       .then((data) => setFunnel(data));
 
-    // SSE connection
-    const eventSource = new EventSource(`${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/events`, {
-      withCredentials: false,
-    });
-
-    // Manually set headers via query param workaround or use EventSource without auth for demo
-    // In production, you'd use a custom SSE client with headers
+    // SSE with token as query param
+    const eventSource = new EventSource(
+      `${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/events?token=${encodeURIComponent(token)}`
+    );
 
     eventSource.onopen = () => setLive(true);
     eventSource.onmessage = (e) => {
       const data = JSON.parse(e.data);
       if (data.type === 'EVALUATION_COMPLETED') {
         setFunnel((prev) => ({ ...prev, evaluated: prev.evaluated + 1 }));
+        setActivities((prev) => [
+          {
+            name: 'Candidate',
+            action: `Completed assessment — Score: ${data.payload.percentage}%`,
+            time: 'Just now',
+            score: data.payload.percentage,
+          },
+          ...prev,
+        ]);
       }
     };
     eventSource.onerror = () => setLive(false);
@@ -62,7 +68,6 @@ export default function EmployerDashboard() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Top Bar */}
       <header className="border-b bg-white px-6 py-4">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <div className="flex items-center gap-3">
@@ -92,7 +97,6 @@ export default function EmployerDashboard() {
       </header>
 
       <main className="mx-auto max-w-7xl p-6">
-        {/* Stats */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-5">
           {stats.map((s) => (
             <div key={s.label} className="rounded-2xl bg-white p-5 shadow-sm">
@@ -105,7 +109,6 @@ export default function EmployerDashboard() {
           ))}
         </div>
 
-        {/* Funnel */}
         <div className="mt-6 rounded-2xl bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
@@ -148,7 +151,6 @@ export default function EmployerDashboard() {
           </div>
         </div>
 
-        {/* Recent Activity */}
         <div className="mt-6 rounded-2xl bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <h3 className="font-bold">Recent Activity</h3>
@@ -157,11 +159,10 @@ export default function EmployerDashboard() {
             </div>
           </div>
           <div className="mt-4 space-y-4">
-            {[
-              { name: 'Ravi Kumar', action: 'Completed Backend Assessment', time: '2 mins ago', score: 82 },
-              { name: 'Priya Sharma', action: 'Started DSA Assessment', time: '15 mins ago', score: null },
-              { name: 'Karthik', action: 'Logged into Admin Panel', time: '1 hour ago', score: null },
-            ].map((item, i) => (
+            {activities.length === 0 && (
+              <div className="text-sm text-gray-400">No recent activity. Waiting for SSE events...</div>
+            )}
+            {activities.map((item, i) => (
               <div key={i} className="flex items-center justify-between rounded-xl bg-slate-50 p-4">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-600">
