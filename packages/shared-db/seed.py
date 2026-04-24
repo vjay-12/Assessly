@@ -1,13 +1,17 @@
 import asyncio
 import os
 import bcrypt
-from uuid import uuid4
+import uuid
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from database import engine, AsyncSessionLocal
-from models import Base, User, UserRole, CandidateStatus, Application, ApplicationStatus, MCQQuestion
+from models import (
+    Base, User, UserRole, Assessment, DifficultyLevel,
+    TestSession, ApplicationStatus, EnrollmentStatus,
+    Question
+)
 
 load_dotenv()
 
@@ -20,76 +24,67 @@ async def seed():
         # Create candidate users
         candidates = [
             User(
-                id=uuid4(),
+                id=uuid.uuid4(),
                 email="alex.rivera@example.com",
-                name="Alex Rivera",
+                full_name="Alex Rivera",
                 password_hash=bcrypt.hashpw("candidate123".encode(), bcrypt.gensalt()).decode(),
                 role=UserRole.CANDIDATE,
-                status=CandidateStatus.ACTIVE,
+                is_verified=True,
             ),
             User(
-                id=uuid4(),
+                id=uuid.uuid4(),
                 email="sarah.jenkins@example.com",
-                name="Sarah Jenkins",
+                full_name="Sarah Jenkins",
                 password_hash=bcrypt.hashpw("candidate123".encode(), bcrypt.gensalt()).decode(),
                 role=UserRole.CANDIDATE,
-                status=CandidateStatus.ACTIVE,
+                is_verified=True,
             ),
             User(
-                id=uuid4(),
+                id=uuid.uuid4(),
                 email="michael.chen@example.com",
-                name="Michael Chen",
+                full_name="Michael Chen",
                 password_hash=bcrypt.hashpw("candidate123".encode(), bcrypt.gensalt()).decode(),
                 role=UserRole.CANDIDATE,
-                status=CandidateStatus.APPLIED,
+                is_verified=False,
             ),
         ]
 
-        # Create employer user
-        employer = User(
-            id=uuid4(),
+        # Create admin user
+        admin = User(
+            id=uuid.uuid4(),
             email="hr@zetheta.com",
-            name="HR Admin",
+            full_name="HR Admin",
             password_hash=bcrypt.hashpw("admin123".encode(), bcrypt.gensalt()).decode(),
-            role=UserRole.EMPLOYER,
-            status=CandidateStatus.ACTIVE,
+            role=UserRole.ADMIN,
+            is_verified=True,
         )
 
-        for u in candidates + [employer]:
+        for u in candidates + [admin]:
             session.add(u)
         await session.commit()
 
-        # Create sample applications (with deterministic ID for demo flow)
-        app1 = Application(
-            id=uuid.UUID("11111111-1111-1111-1111-111111111111"),
-            candidate_id=candidates[0].id,
-            status=ApplicationStatus.APPLIED,
-            created_at=datetime.utcnow(),
+        # Create an assessment
+        assessment = Assessment(
+            id=uuid.uuid4(),
+            title="Full Stack Engineering Assessment",
+            description="A comprehensive assessment covering backend architecture, databases, and system design.",
+            category="Engineering",
+            difficulty=DifficultyLevel.MEDIUM,
+            duration_minutes=60,
+            total_questions=10,
+            pass_mark=50,
+            is_published=True,
+            max_attempts=2,
+            created_by=admin.id,
         )
-        app2 = Application(
-            id=uuid.UUID("22222222-2222-2222-2222-222222222222"),
-            candidate_id=candidates[1].id,
-            status=ApplicationStatus.ATTEMPTED,
-            started_at=datetime.utcnow() - timedelta(hours=2),
-            created_at=datetime.utcnow() - timedelta(days=1),
-        )
-        app3 = Application(
-            id=uuid.UUID("33333333-3333-3333-3333-333333333333"),
-            candidate_id=candidates[2].id,
-            status=ApplicationStatus.SUBMITTED,
-            started_at=datetime.utcnow() - timedelta(hours=3),
-            submitted_at=datetime.utcnow() - timedelta(minutes=30),
-            created_at=datetime.utcnow() - timedelta(days=2),
-        )
-
-        for a in [app1, app2, app3]:
-            session.add(a)
+        session.add(assessment)
         await session.commit()
 
-        # Create MCQ questions
+        # Create questions linked to assessment
         questions = [
-            MCQQuestion(
-                id=uuid4(),
+            Question(
+                id=uuid.uuid4(),
+                assessment_id=assessment.id,
                 question_text="What is the primary purpose of an API Gateway in a microservices architecture?",
                 options=[
                     "To store business logic",
@@ -98,17 +93,23 @@ async def seed():
                     "To compile frontend assets"
                 ],
                 correct_option=1,
+                points=1,
                 difficulty=1,
+                sort_order=1,
             ),
-            MCQQuestion(
-                id=uuid4(),
+            Question(
+                id=uuid.uuid4(),
+                assessment_id=assessment.id,
                 question_text="Which HTTP status code indicates a successful creation of a resource?",
                 options=["200 OK", "201 Created", "204 No Content", "400 Bad Request"],
                 correct_option=1,
+                points=1,
                 difficulty=1,
+                sort_order=2,
             ),
-            MCQQuestion(
-                id=uuid4(),
+            Question(
+                id=uuid.uuid4(),
+                assessment_id=assessment.id,
                 question_text="In Python's asyncio, what does 'await' do?",
                 options=[
                     "Pauses the entire program",
@@ -117,10 +118,13 @@ async def seed():
                     "Blocks the main thread synchronously"
                 ],
                 correct_option=1,
+                points=2,
                 difficulty=2,
+                sort_order=3,
             ),
-            MCQQuestion(
-                id=uuid4(),
+            Question(
+                id=uuid.uuid4(),
+                assessment_id=assessment.id,
                 question_text="What is the main advantage of using Server-Sent Events (SSE) over WebSockets?",
                 options=[
                     "SSE supports bidirectional communication",
@@ -129,17 +133,23 @@ async def seed():
                     "SSE supports binary data natively"
                 ],
                 correct_option=1,
+                points=2,
                 difficulty=2,
+                sort_order=4,
             ),
-            MCQQuestion(
-                id=uuid4(),
+            Question(
+                id=uuid.uuid4(),
+                assessment_id=assessment.id,
                 question_text="Which PostgreSQL feature is used to prevent duplicate rows based on specific columns?",
                 options=["FOREIGN KEY", "CHECK constraint", "UNIQUE constraint", "INDEX"],
                 correct_option=2,
+                points=1,
                 difficulty=1,
+                sort_order=5,
             ),
-            MCQQuestion(
-                id=uuid4(),
+            Question(
+                id=uuid.uuid4(),
+                assessment_id=assessment.id,
                 question_text="What does 'idempotency' mean in the context of API design?",
                 options=[
                     "The API returns the same response format every time",
@@ -148,17 +158,23 @@ async def seed():
                     "The API can only be called once per minute"
                 ],
                 correct_option=1,
+                points=2,
                 difficulty=2,
+                sort_order=6,
             ),
-            MCQQuestion(
-                id=uuid4(),
+            Question(
+                id=uuid.uuid4(),
+                assessment_id=assessment.id,
                 question_text="Which data structure is most efficient for implementing a job queue?",
                 options=["Array", "Linked List", "Stack (LIFO)", "Queue (FIFO)"],
                 correct_option=3,
+                points=1,
                 difficulty=1,
+                sort_order=7,
             ),
-            MCQQuestion(
-                id=uuid4(),
+            Question(
+                id=uuid.uuid4(),
+                assessment_id=assessment.id,
                 question_text="What is the purpose of database connection pooling?",
                 options=[
                     "To create unlimited connections",
@@ -167,10 +183,13 @@ async def seed():
                     "To backup the database automatically"
                 ],
                 correct_option=1,
+                points=1,
                 difficulty=1,
+                sort_order=8,
             ),
-            MCQQuestion(
-                id=uuid4(),
+            Question(
+                id=uuid.uuid4(),
+                assessment_id=assessment.id,
                 question_text="In FastAPI, what does Pydantic provide?",
                 options=[
                     "Database ORM functionality",
@@ -179,10 +198,13 @@ async def seed():
                     "CSS styling"
                 ],
                 correct_option=1,
+                points=1,
                 difficulty=1,
+                sort_order=9,
             ),
-            MCQQuestion(
-                id=uuid4(),
+            Question(
+                id=uuid.uuid4(),
+                assessment_id=assessment.id,
                 question_text="Which of the following is NOT a characteristic of a good unit test?",
                 options=[
                     "It tests a single unit of logic in isolation",
@@ -191,7 +213,9 @@ async def seed():
                     "It is deterministic"
                 ],
                 correct_option=1,
+                points=2,
                 difficulty=2,
+                sort_order=10,
             ),
         ]
 
@@ -199,7 +223,40 @@ async def seed():
             session.add(q)
         await session.commit()
 
-        print("✅ Seed completed: 3 candidates, 1 employer, 3 applications, 10 questions")
+        # Create test sessions (with deterministic IDs for demo flow)
+        ts1 = TestSession(
+            id=uuid.UUID("11111111-1111-1111-1111-111111111111"),
+            candidate_id=candidates[0].id,
+            assessment_id=assessment.id,
+            status=EnrollmentStatus.ASSIGNED,
+            application_status=ApplicationStatus.APPLIED,
+            created_at=datetime.utcnow(),
+        )
+        ts2 = TestSession(
+            id=uuid.UUID("22222222-2222-2222-2222-222222222222"),
+            candidate_id=candidates[1].id,
+            assessment_id=assessment.id,
+            status=EnrollmentStatus.IN_PROGRESS,
+            application_status=ApplicationStatus.ATTEMPTED,
+            started_at=datetime.utcnow() - timedelta(hours=2),
+            created_at=datetime.utcnow() - timedelta(days=1),
+        )
+        ts3 = TestSession(
+            id=uuid.UUID("33333333-3333-3333-3333-333333333333"),
+            candidate_id=candidates[2].id,
+            assessment_id=assessment.id,
+            status=EnrollmentStatus.COMPLETED,
+            application_status=ApplicationStatus.SUBMITTED,
+            started_at=datetime.utcnow() - timedelta(hours=3),
+            submitted_at=datetime.utcnow() - timedelta(minutes=30),
+            created_at=datetime.utcnow() - timedelta(days=2),
+        )
+
+        for ts in [ts1, ts2, ts3]:
+            session.add(ts)
+        await session.commit()
+
+        print("Seed completed: 3 candidates, 1 admin, 1 assessment, 10 questions, 3 test sessions")
 
 
 if __name__ == "__main__":

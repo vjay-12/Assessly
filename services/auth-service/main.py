@@ -18,7 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.database import get_db
-from shared.models import User, UserRole
+from shared.models import User, UserRole, TestSession, ApplicationStatus
 from config import settings
 
 app = FastAPI(title="Zetheta Auth Service", version="1.0.0")
@@ -176,12 +176,11 @@ async def mint_cross_app_token(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    # Verify the application belongs to the candidate
-    from shared.models import Application
+    # Verify the test session belongs to the candidate
     result = await db.execute(
-        select(Application).where(
-            Application.id == uuid.UUID(req.application_id),
-            Application.candidate_id == current_user.id
+        select(TestSession).where(
+            TestSession.id == uuid.UUID(req.application_id),
+            TestSession.candidate_id == current_user.id
         )
     )
     application = result.scalar_one_or_none()
@@ -246,15 +245,14 @@ async def redeem_cross_app_token(req: RedeemTokenRequest, db: AsyncSession = Dep
         payload["application_id"]
     )
 
-    # Update application status to ATTEMPTED
-    from shared.models import Application, ApplicationStatus
+    # Update test session application_status to ATTEMPTED
     result = await db.execute(
-        select(Application).where(Application.id == uuid.UUID(payload["application_id"]))
+        select(TestSession).where(TestSession.id == uuid.UUID(payload["application_id"]))
     )
-    application = result.scalar_one_or_none()
-    if application and application.status == ApplicationStatus.APPLIED:
-        application.status = ApplicationStatus.ATTEMPTED
-        application.started_at = datetime.utcnow()
+    session = result.scalar_one_or_none()
+    if session and session.application_status == ApplicationStatus.APPLIED:
+        session.application_status = ApplicationStatus.ATTEMPTED
+        session.started_at = datetime.utcnow()
         await db.commit()
 
     return RedeemTokenResponse(

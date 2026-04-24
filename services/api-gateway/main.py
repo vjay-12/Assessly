@@ -18,8 +18,8 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 from shared.database import get_db, AsyncSessionLocal
 from shared.models import (
-    User, UserRole, Application, ApplicationStatus,
-    MCQQuestion, Response, Score, PendingEvaluation
+    User, UserRole, TestSession, ApplicationStatus,
+    Question, SessionResponse, PendingEvaluation
 )
 from config import settings
 
@@ -77,9 +77,9 @@ class QuestionOut(BaseModel):
 
 class CandidateOut(BaseModel):
     id: str
-    name: str
+    full_name: str
     email: str
-    status: str
+    is_verified: bool
     application_status: Optional[str] = None
     score_percentage: Optional[float] = None
 
@@ -91,7 +91,7 @@ class ScoreOut(BaseModel):
     percentage: float
     correct_count: int
     total_questions: int
-    evaluated_at: datetime
+    evaluated_at: Optional[datetime]
 
 
 class FunnelOut(BaseModel):
@@ -124,7 +124,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 
 
 async def require_employer(current_user: User = Depends(get_current_user)) -> User:
-    if current_user.role != UserRole.EMPLOYER:
+    if current_user.role != UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="Employer access required")
     return current_user
 
@@ -150,7 +150,7 @@ async def health():
 
 @app.get("/api/questions", response_model=List[QuestionOut])
 async def get_questions(session: dict = Depends(get_assessment_session), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(MCQQuestion).order_by(MCQQuestion.difficulty))
+    result = await db.execute(select(Question).order_by(Question.difficulty))
     questions = result.scalars().all()
     return [
         QuestionOut(
@@ -175,16 +175,16 @@ async def submit_assessment(
     if application_id != session_app_id:
         raise HTTPException(status_code=403, detail="Session does not match application")
 
-    # Verify application exists and belongs to candidate
+    # Verify test session exists and belongs to candidate
     result = await db.execute(
-        select(Application).where(Application.id == application_id)
+        select(TestSession).where(TestSession.id == application_id)
     )
-    application = result.scalar_one_or_none()
-    if not application:
-        raise HTTPException(status_code=404, detail="Application not found")
+    test_session = result.scalar_one_or_none()
+    if not test_session:
+        raise HTTPException(status_code=404, detail="Test session not found")
 
     # Check if already submitted
-    if application.status == ApplicationStatus.SUBMITTED:
+    if test_session.application_status == ApplicationStatus.SUBMITTED:
         return SubmissionResponse(
             status="already_submitted",
             application_id=str(application_id),
@@ -192,7 +192,7 @@ async def submit_assessment(
         )
 
     # Fetch questions to validate answers
-    result = await db.execute(select(MCQQuestion))
+    result = await db.execute(select(Question))
     questions = {str(q.id): q for q in result.scalars().all()}
 
     # Store responses
@@ -201,22 +201,21 @@ async def submit_assessment(
         if not question:
             continue
         is_correct = ans.selected_option == question.correct_option
-        response = Response(
+        response = SessionResponse(
             id=uuid.uuid4(),
-            application_id=application_id,
+            session_id=application_id,
             question_id=uuid.UUID(ans.question_id),
             selected_option=ans.selected_option,
             is_correct=is_correct
         )
         db.add(response)
 
-    application.status = ApplicationStatus.SUBMITTED
-    application.submitted_at = datetime.utcnow()
+    test_session.application_status = ApplicationStatus.SUBMITTED
+    test_session.submitted_at = datetime.utcnow()
     await db.commit()
 
     # Enqueue evaluation job
     try:
-        # Use Redis to enqueue via a simple queue message for the worker
         job_payload = json.dumps({
             "application_id": str(application_id),
             "enqueued_at": datetime.utcnow().isoformat()
@@ -226,7 +225,7 @@ async def submit_assessment(
         # Fallback: store in pending_evaluations for recovery
         pending = PendingEvaluation(
             id=uuid.uuid4(),
-            application_id=application_id,
+            session_id=application_id,
             queued_at=datetime.utcnow()
         )
         db.add(pending)
@@ -252,13 +251,10 @@ async def list_candidates(
 
     query = select(User).where(User.role == UserRole.CANDIDATE)
 
-    if status:
-        query = query.where(User.status == status)
-
     if search:
         query = query.where(
             or_(
-                User.name.ilike(f"%{search}%"),
+                User.full_name.ilike(f"%{search}%"),
                 User.email.ilike(f"%{search}%")
             )
         )
@@ -267,26 +263,25 @@ async def list_candidates(
     result = await db.execute(query)
     users = result.scalars().all()
 
-    # Fetch latest application + score for each candidate
+    # Fetch latest test session for each candidate
     candidates = []
     for u in users:
         app_result = await db.execute(
-            select(Application).where(Application.candidate_id == u.id).order_by(Application.created_at.desc())
+            select(TestSession).where(TestSession.candidate_id == u.id).order_by(TestSession.created_at.desc())
         )
         latest_app = app_result.scalars().first()
 
         score_pct = None
         app_status = None
         if latest_app:
-            app_status = latest_app.status.value
-            if latest_app.score:
-                score_pct = latest_app.score.percentage
+            app_status = latest_app.application_status.value
+            score_pct = latest_app.score_percentage
 
         candidates.append(CandidateOut(
             id=str(u.id),
-            name=u.name,
+            full_name=u.full_name,
             email=u.email,
-            status=u.status.value,
+            is_verified=u.is_verified,
             application_status=app_status,
             score_percentage=score_pct
         ))
@@ -302,33 +297,37 @@ async def list_scores(
     current_user: User = Depends(require_employer),
     db: AsyncSession = Depends(get_db)
 ):
-    query = select(Score, User).join(Application).join(User)
+    query = (
+        select(TestSession, User)
+        .join(User, TestSession.candidate_id == User.id)
+        .where(TestSession.application_status == ApplicationStatus.EVALUATED)
+    )
 
     if min_score is not None:
-        query = query.where(Score.percentage >= min_score)
+        query = query.where(TestSession.score_percentage >= min_score)
 
-    query = query.order_by(Score.evaluated_at.desc()).limit(limit).offset(offset)
+    query = query.order_by(TestSession.evaluated_at.desc().nullslast()).limit(limit).offset(offset)
     result = await db.execute(query)
     rows = result.all()
 
     return [
         ScoreOut(
-            id=str(score.id),
-            application_id=str(score.application_id),
-            candidate_name=user.name,
-            percentage=score.percentage,
-            correct_count=score.correct_count,
-            total_questions=score.total_questions,
-            evaluated_at=score.evaluated_at
+            id=str(ts.id),
+            application_id=str(ts.id),
+            candidate_name=user.full_name,
+            percentage=ts.score_percentage or 0,
+            correct_count=ts.correct_count or 0,
+            total_questions=ts.total_questions or 0,
+            evaluated_at=ts.evaluated_at
         )
-        for score, user in rows
+        for ts, user in rows
     ]
 
 
 @app.get("/api/analytics/funnel", response_model=FunnelOut)
 async def get_funnel(current_user: User = Depends(require_employer), db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(Application.status, func.count(Application.id)).group_by(Application.status)
+        select(TestSession.application_status, func.count(TestSession.id)).group_by(TestSession.application_status)
     )
     counts = {status.value: count for status, count in result.all()}
 
@@ -346,7 +345,7 @@ async def events_stream(token: Optional[str] = Query(None)):
         raise HTTPException(status_code=401, detail="Missing token")
     try:
         payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
-        if payload.get("role") != "employer":
+        if payload.get("role") != "admin":
             raise HTTPException(status_code=403, detail="Employer access required")
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
@@ -382,28 +381,28 @@ async def get_submission_status(
     db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(
-        select(Application).where(Application.id == uuid.UUID(application_id))
+        select(TestSession).where(TestSession.id == uuid.UUID(application_id))
     )
-    application = result.scalar_one_or_none()
-    if not application:
-        raise HTTPException(status_code=404, detail="Application not found")
+    test_session = result.scalar_one_or_none()
+    if not test_session:
+        raise HTTPException(status_code=404, detail="Test session not found")
 
     # Verify ownership (candidate can only see their own)
-    if current_user.role == UserRole.CANDIDATE and application.candidate_id != current_user.id:
+    if current_user.role == UserRole.CANDIDATE and test_session.candidate_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied")
 
     score_data = None
-    if application.score:
+    if test_session.application_status == ApplicationStatus.EVALUATED:
         score_data = {
-            "percentage": application.score.percentage,
-            "correct_count": application.score.correct_count,
-            "total_questions": application.score.total_questions,
-            "evaluated_at": application.score.evaluated_at.isoformat()
+            "percentage": test_session.score_percentage,
+            "correct_count": test_session.correct_count,
+            "total_questions": test_session.total_questions,
+            "evaluated_at": test_session.evaluated_at.isoformat() if test_session.evaluated_at else None
         }
 
     return {
         "application_id": application_id,
-        "status": application.status.value,
-        "submitted_at": application.submitted_at.isoformat() if application.submitted_at else None,
+        "status": test_session.application_status.value,
+        "submitted_at": test_session.submitted_at.isoformat() if test_session.submitted_at else None,
         "score": score_data
     }

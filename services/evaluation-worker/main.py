@@ -11,7 +11,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.database import AsyncSessionLocal, engine
-from shared.models import Base, Application, ApplicationStatus, Response, MCQQuestion, Score, PendingEvaluation
+from shared.models import Base, TestSession, ApplicationStatus, SessionResponse, Question, PendingEvaluation
 
 # Configure structlog
 structlog.configure(
@@ -41,23 +41,28 @@ async def process_evaluation(application_id: str, db: AsyncSession, redis_client
     app_uuid = uuid.UUID(application_id)
 
     # 1. Idempotency check
-    result = await db.execute(select(Score).where(Score.application_id == app_uuid))
+    result = await db.execute(
+        select(TestSession).where(
+            TestSession.id == app_uuid,
+            TestSession.application_status == ApplicationStatus.EVALUATED
+        )
+    )
     existing = result.scalar_one_or_none()
     if existing:
-        logger.info("score_already_exists", application_id=application_id)
-        return {"status": "already_evaluated", "score_id": str(existing.id)}
+        logger.info("session_already_evaluated", application_id=application_id)
+        return {"status": "already_evaluated", "session_id": str(existing.id)}
 
     # 2. Fetch responses with questions
     result = await db.execute(
-        select(Response, MCQQuestion)
-        .join(MCQQuestion, Response.question_id == MCQQuestion.id)
-        .where(Response.application_id == app_uuid)
+        select(SessionResponse, Question)
+        .join(Question, SessionResponse.question_id == Question.id)
+        .where(SessionResponse.session_id == app_uuid)
     )
     rows = result.all()
 
     if not rows:
         logger.warning("no_responses_found", application_id=application_id)
-        raise Exception(f"No responses found for application {application_id}")
+        raise Exception(f"No responses found for session {application_id}")
 
     # 3. Compute score
     total = len(rows)
@@ -69,23 +74,19 @@ async def process_evaluation(application_id: str, db: AsyncSession, redis_client
 
     percentage = (correct / total) * 100 if total > 0 else 0
 
-    # 4. Store score + update application status
-    score = Score(
-        id=uuid.uuid4(),
-        application_id=app_uuid,
-        total_questions=total,
-        correct_count=correct,
-        percentage=percentage,
-        worker_id=WORKER_ID,
-    )
-
+    # 4. Update test session with score and status
     await db.execute(
-        update(Application)
-        .where(Application.id == app_uuid)
-        .values(status=ApplicationStatus.EVALUATED)
+        update(TestSession)
+        .where(TestSession.id == app_uuid)
+        .values(
+            application_status=ApplicationStatus.EVALUATED,
+            score_percentage=percentage,
+            total_questions=total,
+            correct_count=correct,
+            evaluated_at=datetime.utcnow(),
+            worker_id=WORKER_ID
+        )
     )
-
-    db.add(score)
     await db.commit()
 
     # 5. Publish real-time event
@@ -102,7 +103,7 @@ async def process_evaluation(application_id: str, db: AsyncSession, redis_client
 
     # 6. Remove from pending_evaluations if exists
     pending_result = await db.execute(
-        select(PendingEvaluation).where(PendingEvaluation.application_id == app_uuid)
+        select(PendingEvaluation).where(PendingEvaluation.session_id == app_uuid)
     )
     pending = pending_result.scalar_one_or_none()
     if pending:
@@ -118,15 +119,15 @@ async def process_evaluation(application_id: str, db: AsyncSession, redis_client
         worker_id=WORKER_ID
     )
 
-    return {"status": "completed", "score_id": str(score.id), "percentage": percentage}
+    return {"status": "completed", "session_id": str(app_uuid), "percentage": percentage}
 
 
 async def recover_pending_evaluations(db: AsyncSession, redis_client: redis.Redis):
-    """Scan for SUBMITTED applications without scores and re-enqueue them."""
+    """Scan for SUBMITTED test sessions without evaluation and re-enqueue them."""
     result = await db.execute(
-        select(Application.id)
-        .where(Application.status == ApplicationStatus.SUBMITTED)
-        .where(~select(Score).where(Score.application_id == Application.id).exists())
+        select(TestSession.id)
+        .where(TestSession.application_status == ApplicationStatus.SUBMITTED)
+        .where(TestSession.score_percentage.is_(None))
     )
     orphaned = result.scalars().all()
 
