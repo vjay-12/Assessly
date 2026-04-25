@@ -64,7 +64,7 @@ export default function LoginPage() {
             { icon: '✓', title: 'Verified', desc: 'Industry standard results' },
           ].map((item) => (
             <div key={item.title} className="rounded-xl bg-white/10 p-4 backdrop-blur-sm">
-              <div className="text-2xl">{item.icon}</div>
+              <div className="text-2xl"><span suppressHydrationWarning>{item.icon}</span></div>
               <div className="mt-2 font-semibold">{item.title}</div>
               <div className="text-sm text-white/70">{item.desc}</div>
             </div>
