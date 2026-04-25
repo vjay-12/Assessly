@@ -92,25 +92,15 @@ function AssessmentContent() {
     });
   };
 
-  const handleSubmit = () => {
+  const goToReview = () => {
     if (!session) return;
-    const payload = {
-      application_id: session.application_id,
-      answers: Object.entries(answers).map(([qid, sel]) => ({ question_id: qid, selected_option: sel })),
-    };
-
-    fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/submissions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${session.session_token}`,
-      },
-      body: JSON.stringify(payload),
-    })
-      .then((r) => r.json())
-      .then(() => {
-        router.push('/assessment/results');
-      });
+    // Persist state for review page
+    localStorage.setItem('assessment_session', JSON.stringify(session));
+    localStorage.setItem('assessment_answers', JSON.stringify(answers));
+    localStorage.setItem('assessment_flagged', JSON.stringify([...flagged]));
+    localStorage.setItem('assessment_questions', JSON.stringify(questions));
+    localStorage.setItem('assessment_time_left', String(timeLeft));
+    router.push('/assessment/review');
   };
 
   if (loading) return <div className="flex h-screen items-center justify-center">Loading assessment...</div>;
@@ -224,10 +214,10 @@ function AssessmentContent() {
               </button>
             ) : (
               <button
-                onClick={handleSubmit}
+                onClick={goToReview}
                 className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
               >
-                Submit Assessment
+                Review & Submit
               </button>
             )}
           </div>

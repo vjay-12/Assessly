@@ -1,6 +1,27 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+
 export default function ResultsPage() {
+  const router = useRouter();
+  const [submission, setSubmission] = useState<any>(null);
+
+  useEffect(() => {
+    const sub = localStorage.getItem('assessment_submission');
+    if (sub) {
+      setSubmission(JSON.parse(sub));
+    }
+  }, []);
+
+  const score = submission?.score;
+  const percentage = score?.percentage || 84;
+  const correct = score?.correct_count || 8;
+  const total = score?.total_questions || 10;
+  const incorrect = total - correct - (total - correct - (score?.unanswered || 0));
+  const unanswered = total - correct - incorrect;
+  const passed = percentage >= 50;
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
       <div className="w-full max-w-2xl">
@@ -14,30 +35,36 @@ export default function ResultsPage() {
                   cy="50"
                   r="45"
                   fill="none"
-                  stroke="#4f46e5"
+                  stroke={passed ? '#4f46e5' : '#ef4444'}
                   strokeWidth="8"
-                  strokeDasharray={`${84 * 2.83} 283`}
+                  strokeDasharray={`${percentage * 2.83} 283`}
                   strokeLinecap="round"
                 />
               </svg>
               <div className="absolute text-center">
-                <div className="text-4xl font-bold">84</div>
+                <div className="text-4xl font-bold">{percentage}</div>
                 <div className="text-sm text-gray-500">out of 100</div>
               </div>
             </div>
-            <div className="mt-4 rounded-full bg-green-100 px-4 py-1 text-sm font-semibold text-green-700">PASS</div>
+            <div className={`mt-4 rounded-full px-4 py-1 text-sm font-semibold ${passed ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+              {passed ? 'PASS' : 'FAIL'}
+            </div>
             <h1 className="mt-4 text-2xl font-bold">Assessment Complete</h1>
-            <p className="mt-2 text-gray-500">Excellent work! Your strong performance demonstrates a solid foundation.</p>
+            <p className="mt-2 text-gray-500">
+              {passed
+                ? 'Excellent work! Your strong performance demonstrates a solid foundation.'
+                : 'Keep learning! Review the topics and try again when ready.'}
+            </p>
           </div>
 
           <div className="mt-8 grid grid-cols-2 gap-4">
             <div className="rounded-xl bg-slate-50 p-4 text-center">
               <div className="text-sm text-gray-500">Submitted On</div>
-              <div className="mt-1 font-semibold">Oct 24, 2023 at 14:45 PM</div>
+              <div className="mt-1 font-semibold">{new Date().toLocaleString()}</div>
             </div>
             <div className="rounded-xl bg-slate-50 p-4 text-center">
               <div className="text-sm text-gray-500">Time Taken</div>
-              <div className="mt-1 font-semibold">38 mins 12 sec</div>
+              <div className="mt-1 font-semibold">—</div>
             </div>
           </div>
 
@@ -45,9 +72,9 @@ export default function ResultsPage() {
             <h3 className="font-semibold">Breakdown</h3>
             <div className="mt-3 space-y-2">
               {[
-                { label: 'Correct', count: 8, color: 'bg-green-500' },
-                { label: 'Incorrect', count: 1, color: 'bg-red-500' },
-                { label: 'Unanswered', count: 1, color: 'bg-gray-300' },
+                { label: 'Correct', count: correct, color: 'bg-green-500' },
+                { label: 'Incorrect', count: incorrect, color: 'bg-red-500' },
+                { label: 'Unanswered', count: unanswered, color: 'bg-gray-300' },
               ].map((item) => (
                 <div key={item.label} className="flex items-center justify-between rounded-lg bg-slate-50 p-3">
                   <div className="flex items-center gap-3">
@@ -61,7 +88,18 @@ export default function ResultsPage() {
           </div>
 
           <div className="mt-8 flex gap-4">
-            <button className="flex-1 rounded-lg bg-indigo-600 py-3 font-semibold text-white hover:bg-indigo-700">
+            <button
+              onClick={() => {
+                localStorage.removeItem('assessment_session');
+                localStorage.removeItem('assessment_answers');
+                localStorage.removeItem('assessment_flagged');
+                localStorage.removeItem('assessment_questions');
+                localStorage.removeItem('assessment_time_left');
+                localStorage.removeItem('assessment_submission');
+                window.location.href = process.env.NEXT_PUBLIC_CANDIDATE_PORTAL_URL || '/';
+              }}
+              className="flex-1 rounded-lg bg-indigo-600 py-3 font-semibold text-white hover:bg-indigo-700"
+            >
               Back to Dashboard
             </button>
             <button className="flex-1 rounded-lg border border-gray-200 py-3 font-semibold text-gray-700 hover:bg-gray-50">

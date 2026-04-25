@@ -1,26 +1,97 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+
+interface Question {
+  id: string;
+  question_text: string;
+  options: string[];
+  difficulty: number;
+}
+
+interface SessionData {
+  session_token: string;
+  candidate_id: string;
+  application_id: string;
+}
 
 export default function ReviewPage() {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
+  const [session, setSession] = useState<SessionData | null>(null);
+  const [answers, setAnswers] = useState<Record<string, number>>({});
+  const [flagged, setFlagged] = useState<Set<string>>(new Set());
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [timeLeft, setTimeLeft] = useState(0);
+  const [loading, setLoading] = useState(true);
 
-  const stats = [
-    { label: 'TOTAL QUESTIONS', value: 10 },
-    { label: 'ANSWERED', value: 8, percent: '80%' },
-    { label: 'UNANSWERED', value: 2, warning: true },
-    { label: 'FLAGGED FOR REVIEW', value: 1 },
-    { label: 'TIME TAKEN', value: '28m 15s' },
-  ];
+  useEffect(() => {
+    const sess = localStorage.getItem('assessment_session');
+    const ans = localStorage.getItem('assessment_answers');
+    const flg = localStorage.getItem('assessment_flagged');
+    const qs = localStorage.getItem('assessment_questions');
+    const tl = localStorage.getItem('assessment_time_left');
 
-  const handleSubmit = () => {
+    if (!sess || !ans || !qs) {
+      router.push('/assessment');
+      return;
+    }
+
+    setSession(JSON.parse(sess));
+    setAnswers(JSON.parse(ans));
+    setFlagged(new Set(JSON.parse(flg || '[]')));
+    setQuestions(JSON.parse(qs));
+    setTimeLeft(Number(tl || 0));
+    setLoading(false);
+  }, [router]);
+
+  const handleSubmit = async () => {
+    if (!session) return;
     setSubmitting(true);
-    setTimeout(() => {
-      router.push('/assessment/results');
-    }, 1500);
+
+    const payload = {
+      application_id: session.application_id,
+      answers: Object.entries(answers).map(([qid, sel]) => ({ question_id: qid, selected_option: sel })),
+    };
+
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/submissions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.session_token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        localStorage.setItem('assessment_submission', JSON.stringify(data));
+        router.push('/assessment/results');
+      } else {
+        alert(data.detail || 'Submission failed');
+        setSubmitting(false);
+      }
+    } catch {
+      alert('Network error during submission');
+      setSubmitting(false);
+    }
   };
+
+  const total = questions.length;
+  const answered = Object.keys(answers).length;
+  const unanswered = total - answered;
+  const flaggedCount = flagged.size;
+  const timeTaken = 30 * 60 - timeLeft;
+  const formatTime = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}m ${sec}s`;
+  };
+
+  if (loading) {
+    return <div className="flex h-screen items-center justify-center">Loading review...</div>;
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
@@ -38,7 +109,13 @@ export default function ReviewPage() {
           </div>
 
           <div className="mt-6 grid grid-cols-2 gap-4">
-            {stats.map((s) => (
+            {[
+              { label: 'TOTAL QUESTIONS', value: total },
+              { label: 'ANSWERED', value: answered, percent: `${Math.round((answered / total) * 100)}%` },
+              { label: 'UNANSWERED', value: unanswered, warning: unanswered > 0 },
+              { label: 'FLAGGED FOR REVIEW', value: flaggedCount },
+              { label: 'TIME TAKEN', value: formatTime(timeTaken) },
+            ].map((s) => (
               <div key={s.label} className={`rounded-xl p-4 ${s.warning ? 'bg-amber-50' : 'bg-slate-50'}`}>
                 <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">{s.label}</div>
                 <div className={`mt-1 text-2xl font-bold ${s.warning ? 'text-amber-600' : ''}`}>
@@ -48,6 +125,13 @@ export default function ReviewPage() {
               </div>
             ))}
           </div>
+
+          {unanswered > 0 && (
+            <div className="mt-4 rounded-xl bg-amber-50 p-4">
+              <p className="font-medium text-amber-800">You have {unanswered} unanswered question(s)</p>
+              <p className="mt-1 text-sm text-amber-700">Consider reviewing before submitting.</p>
+            </div>
+          )}
 
           <div className="mt-6 rounded-xl bg-amber-50 p-4">
             <p className="font-medium text-amber-800">Are you sure you want to submit?</p>
