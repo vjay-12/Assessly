@@ -89,6 +89,9 @@ def start_service(service):
 
     if sys.platform == "win32":
         kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        # npm is a .cmd file on Windows — needs shell=True
+        if service["cmd"][0] == "npm":
+            kwargs["shell"] = True
 
     proc = subprocess.Popen(service["cmd"], **kwargs)
     processes.append(proc)
