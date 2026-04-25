@@ -19,7 +19,8 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from shared.database import get_db, AsyncSessionLocal
 from shared.models import (
     User, UserRole, TestSession, ApplicationStatus,
-    Question, SessionResponse, PendingEvaluation
+    Question, SessionResponse, PendingEvaluation,
+    Assessment, AssessmentAssignment, EnrollmentStatus
 )
 from config import settings
 
@@ -99,6 +100,45 @@ class FunnelOut(BaseModel):
     attempted: int
     submitted: int
     evaluated: int
+
+
+class CreateUserRequest(BaseModel):
+    email: str
+    password: str
+    full_name: str
+    role: str = "candidate"
+
+
+class CreateUserResponse(BaseModel):
+    id: str
+    email: str
+    full_name: str
+    role: str
+
+
+class AssignmentRequest(BaseModel):
+    candidate_id: str
+    assessment_id: str
+
+
+class AssignmentResponse(BaseModel):
+    id: str
+    candidate_id: str
+    assessment_id: str
+    status: str
+    assigned_at: datetime
+
+
+class AssessmentOut(BaseModel):
+    id: str
+    title: str
+    description: str
+    category: str
+    difficulty: str
+    duration_minutes: int
+    total_questions: int
+    pass_mark: float
+    is_published: bool
 
 
 # ─── Auth Helpers ───
@@ -406,3 +446,130 @@ async def get_submission_status(
         "submitted_at": test_session.submitted_at.isoformat() if test_session.submitted_at else None,
         "score": score_data
     }
+
+
+@app.post("/api/users", response_model=CreateUserResponse)
+async def create_user(
+    req: CreateUserRequest,
+    current_user: User = Depends(require_employer),
+    db: AsyncSession = Depends(get_db)
+):
+    import bcrypt
+    # Check duplicate email
+    result = await db.execute(select(User).where(User.email == req.email))
+    if result.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Email already exists")
+
+    role = UserRole.ADMIN if req.role.lower() == "admin" else UserRole.CANDIDATE
+    password_hash = bcrypt.hashpw(req.password.encode(), bcrypt.gensalt()).decode()
+
+    user = User(
+        id=uuid.uuid4(),
+        email=req.email,
+        full_name=req.full_name,
+        password_hash=password_hash,
+        role=role,
+        is_verified=True,
+    )
+    db.add(user)
+    await db.commit()
+
+    return CreateUserResponse(
+        id=str(user.id),
+        email=user.email,
+        full_name=user.full_name,
+        role=user.role.value,
+    )
+
+
+@app.get("/api/assessments", response_model=List[AssessmentOut])
+async def list_assessments(
+    current_user: User = Depends(require_employer),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(Assessment).where(Assessment.is_published == True))
+    assessments = result.scalars().all()
+    return [
+        AssessmentOut(
+            id=str(a.id),
+            title=a.title,
+            description=a.description,
+            category=a.category,
+            difficulty=a.difficulty.value if hasattr(a.difficulty, 'value') else str(a.difficulty),
+            duration_minutes=a.duration_minutes,
+            total_questions=a.total_questions,
+            pass_mark=a.pass_mark,
+            is_published=a.is_published,
+        )
+        for a in assessments
+    ]
+
+
+@app.post("/api/assignments", response_model=AssignmentResponse)
+async def create_assignment(
+    req: AssignmentRequest,
+    current_user: User = Depends(require_employer),
+    db: AsyncSession = Depends(get_db)
+):
+    # Validate candidate
+    result = await db.execute(select(User).where(User.id == uuid.UUID(req.candidate_id)))
+    candidate = result.scalar_one_or_none()
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    if candidate.role != UserRole.CANDIDATE:
+        raise HTTPException(status_code=400, detail="Target user is not a candidate")
+
+    # Validate assessment
+    result = await db.execute(select(Assessment).where(Assessment.id == uuid.UUID(req.assessment_id)))
+    assessment = result.scalar_one_or_none()
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    # Create assignment
+    assignment = AssessmentAssignment(
+        id=uuid.uuid4(),
+        candidate_id=uuid.UUID(req.candidate_id),
+        assessment_id=uuid.UUID(req.assessment_id),
+        status=EnrollmentStatus.ASSIGNED,
+    )
+    db.add(assignment)
+
+    # Create test session
+    test_session = TestSession(
+        id=uuid.uuid4(),
+        candidate_id=uuid.UUID(req.candidate_id),
+        assessment_id=uuid.UUID(req.assessment_id),
+        application_status=ApplicationStatus.APPLIED,
+    )
+    db.add(test_session)
+    await db.commit()
+
+    # Enqueue evaluation placeholder (just log for now)
+    print(f"[ASSIGNMENT] Created for candidate {req.candidate_id} -> assessment {req.assessment_id}")
+
+    return AssignmentResponse(
+        id=str(assignment.id),
+        candidate_id=str(assignment.candidate_id),
+        assessment_id=str(assignment.assessment_id),
+        status=assignment.status.value,
+        assigned_at=datetime.utcnow(),
+    )
+
+
+@app.get("/api/assignments", response_model=List[AssignmentResponse])
+async def list_assignments(
+    current_user: User = Depends(require_employer),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(AssessmentAssignment))
+    assignments = result.scalars().all()
+    return [
+        AssignmentResponse(
+            id=str(a.id),
+            candidate_id=str(a.candidate_id),
+            assessment_id=str(a.assessment_id),
+            status=a.status.value,
+            assigned_at=a.assigned_at if hasattr(a, 'assigned_at') and a.assigned_at else datetime.utcnow(),
+        )
+        for a in assignments
+    ]

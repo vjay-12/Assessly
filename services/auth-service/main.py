@@ -86,6 +86,38 @@ class VerifyResponse(BaseModel):
     role: Optional[str] = None
 
 
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    password: str
+    full_name: str
+    role: Optional[str] = "candidate"
+
+
+class RegisterResponse(BaseModel):
+    user_id: str
+    email: str
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ForgotPasswordResponse(BaseModel):
+    message: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+class ResetPasswordResponse(BaseModel):
+    message: str
+
+
 # ─── Helpers ───
 
 def create_access_token(user_id: str, role: str) -> str:
@@ -271,6 +303,80 @@ async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(secur
         return VerifyResponse(valid=True, user_id=payload.get("sub"), role=payload.get("role"))
     except JWTError:
         return VerifyResponse(valid=False)
+
+
+@app.post("/auth/register", response_model=RegisterResponse)
+async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
+    # Check if user already exists
+    result = await db.execute(select(User).where(User.email == req.email))
+    existing = result.scalar_one_or_none()
+    if existing:
+        raise HTTPException(status_code=409, detail="Email already registered")
+
+    # Validate role
+    role_str = (req.role or "candidate").lower()
+    if role_str not in ("candidate", "admin"):
+        raise HTTPException(status_code=400, detail="Invalid role. Must be 'candidate' or 'admin'")
+    role = UserRole.ADMIN if role_str == "admin" else UserRole.CANDIDATE
+
+    # Hash password
+    password_hash = bcrypt.hashpw(req.password.encode(), bcrypt.gensalt()).decode()
+
+    user = User(
+        id=uuid.uuid4(),
+        email=req.email,
+        full_name=req.full_name,
+        password_hash=password_hash,
+        role=role,
+        is_verified=True,
+    )
+    db.add(user)
+    await db.commit()
+
+    access_token = create_access_token(str(user.id), user.role.value)
+    refresh_token = create_refresh_token(str(user.id))
+
+    return RegisterResponse(
+        user_id=str(user.id),
+        email=user.email,
+        access_token=access_token,
+        refresh_token=refresh_token,
+    )
+
+
+@app.post("/auth/forgot-password", response_model=ForgotPasswordResponse)
+async def forgot_password(req: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.email == req.email))
+    user = result.scalar_one_or_none()
+    if not user:
+        # Don't reveal whether email exists
+        return ForgotPasswordResponse(message="If the email exists, a reset link has been sent")
+
+    reset_token = secrets.token_urlsafe(32)
+    await redis_client.setex(f"reset:{reset_token}", 3600, str(user.id))
+
+    # TODO: send actual email; for now log it
+    print(f"[EMAIL] Password reset for {req.email}: token={reset_token}")
+
+    return ForgotPasswordResponse(message="If the email exists, a reset link has been sent")
+
+
+@app.post("/auth/reset-password", response_model=ResetPasswordResponse)
+async def reset_password(req: ResetPasswordRequest, db: AsyncSession = Depends(get_db)):
+    user_id = await redis_client.get(f"reset:{req.token}")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    user.password_hash = bcrypt.hashpw(req.new_password.encode(), bcrypt.gensalt()).decode()
+    await db.commit()
+    await redis_client.delete(f"reset:{req.token}")
+
+    return ResetPasswordResponse(message="Password updated successfully")
 
 
 @app.get("/health")

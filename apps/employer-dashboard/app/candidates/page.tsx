@@ -12,25 +12,98 @@ interface Candidate {
   score_percentage: number | null;
 }
 
+interface Assessment {
+  id: string;
+  title: string;
+}
+
 function CandidatesContent() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [showCreate, setShowCreate] = useState(false);
+  const [showAssign, setShowAssign] = useState(false);
+  const [createForm, setCreateForm] = useState({ email: '', password: '', full_name: '', role: 'candidate' });
+  const [assignForm, setAssignForm] = useState({ candidate_id: '', assessment_id: '' });
+  const [formError, setFormError] = useState('');
+  const [formSuccess, setFormSuccess] = useState('');
 
-  useEffect(() => {
-    const token = localStorage.getItem('access_token');
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : '';
+
+  const fetchCandidates = () => {
     if (!token) return;
-
     fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/candidates?limit=100`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
-      .then((data) => {
-        setCandidates(Array.isArray(data) ? data : []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+      .then((data) => setCandidates(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  };
+
+  const fetchAssessments = () => {
+    if (!token) return;
+    fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/assessments`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => setAssessments(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchCandidates();
+    fetchAssessments();
+    setLoading(false);
   }, []);
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError('');
+    setFormSuccess('');
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(createForm),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setFormError(data.detail || 'Failed to create user');
+        return;
+      }
+      setFormSuccess(`User ${data.email} created successfully`);
+      setCreateForm({ email: '', password: '', full_name: '', role: 'candidate' });
+      fetchCandidates();
+      setTimeout(() => setShowCreate(false), 1500);
+    } catch {
+      setFormError('Network error');
+    }
+  };
+
+  const handleAssign = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError('');
+    setFormSuccess('');
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/assignments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(assignForm),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setFormError(data.detail || 'Failed to assign assessment');
+        return;
+      }
+      setFormSuccess('Assessment assigned successfully');
+      setAssignForm({ candidate_id: '', assessment_id: '' });
+      fetchCandidates();
+      setTimeout(() => setShowAssign(false), 1500);
+    } catch {
+      setFormError('Network error');
+    }
+  };
 
   const filtered = candidates.filter(
     (c) =>
@@ -60,16 +133,121 @@ function CandidatesContent() {
           <h1 className="text-2xl font-bold">Candidates</h1>
           <p className="text-sm text-gray-500">Track candidate progress through the assessment pipeline</p>
         </div>
-        <div className="w-72">
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name or email..."
-            className="w-full rounded-lg border border-gray-200 px-4 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-          />
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => { setShowAssign(true); setFormError(''); setFormSuccess(''); }}
+            className="rounded-lg border border-indigo-200 px-4 py-2 text-sm font-medium text-indigo-600 hover:bg-indigo-50"
+          >
+            Assign Assessment
+          </button>
+          <button
+            onClick={() => { setShowCreate(true); setFormError(''); setFormSuccess(''); }}
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+          >
+            + Create User
+          </button>
+          <div className="w-64">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name or email..."
+              className="w-full rounded-lg border border-gray-200 px-4 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+            />
+          </div>
         </div>
       </div>
+
+      {showCreate && (
+        <div className="mb-6 rounded-2xl bg-white p-6 shadow-sm">
+          <h3 className="mb-4 text-lg font-bold">Create New User</h3>
+          {formError && <div className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-600">{formError}</div>}
+          {formSuccess && <div className="mb-3 rounded-lg bg-green-50 p-3 text-sm text-green-600">{formSuccess}</div>}
+          <form onSubmit={handleCreateUser} className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <input
+              type="text"
+              placeholder="Full Name"
+              value={createForm.full_name}
+              onChange={(e) => setCreateForm({ ...createForm, full_name: e.target.value })}
+              className="rounded-lg border border-gray-200 px-4 py-2 text-sm outline-none focus:border-indigo-500"
+              required
+            />
+            <input
+              type="email"
+              placeholder="Email"
+              value={createForm.email}
+              onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
+              className="rounded-lg border border-gray-200 px-4 py-2 text-sm outline-none focus:border-indigo-500"
+              required
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              value={createForm.password}
+              onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
+              className="rounded-lg border border-gray-200 px-4 py-2 text-sm outline-none focus:border-indigo-500"
+              required
+              minLength={6}
+            />
+            <div className="flex gap-2">
+              <select
+                value={createForm.role}
+                onChange={(e) => setCreateForm({ ...createForm, role: e.target.value })}
+                className="rounded-lg border border-gray-200 px-4 py-2 text-sm outline-none focus:border-indigo-500"
+              >
+                <option value="candidate">Candidate</option>
+                <option value="admin">Admin</option>
+              </select>
+              <button type="submit" className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+                Create
+              </button>
+              <button type="button" onClick={() => setShowCreate(false)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {showAssign && (
+        <div className="mb-6 rounded-2xl bg-white p-6 shadow-sm">
+          <h3 className="mb-4 text-lg font-bold">Assign Assessment</h3>
+          {formError && <div className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-600">{formError}</div>}
+          {formSuccess && <div className="mb-3 rounded-lg bg-green-50 p-3 text-sm text-green-600">{formSuccess}</div>}
+          <form onSubmit={handleAssign} className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <select
+              value={assignForm.candidate_id}
+              onChange={(e) => setAssignForm({ ...assignForm, candidate_id: e.target.value })}
+              className="rounded-lg border border-gray-200 px-4 py-2 text-sm outline-none focus:border-indigo-500"
+              required
+            >
+              <option value="">Select Candidate</option>
+              {candidates.map((c) => (
+                <option key={c.id} value={c.id}>{c.full_name} ({c.email})</option>
+              ))}
+            </select>
+            <select
+              value={assignForm.assessment_id}
+              onChange={(e) => setAssignForm({ ...assignForm, assessment_id: e.target.value })}
+              className="rounded-lg border border-gray-200 px-4 py-2 text-sm outline-none focus:border-indigo-500"
+              required
+            >
+              <option value="">Select Assessment</option>
+              {assessments.map((a) => (
+                <option key={a.id} value={a.id}>{a.title}</option>
+              ))}
+            </select>
+            <div className="flex gap-2">
+              <button type="submit" className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+                Assign
+              </button>
+              <button type="button" onClick={() => setShowAssign(false)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       <div className="rounded-2xl bg-white shadow-sm">
         <table className="w-full text-left text-sm">
@@ -130,7 +308,7 @@ function CandidatesContent() {
                 </td>
                 <td className="px-6 py-4">
                   {c.is_verified ? (
-                    <span className="rounded-full bg-green-50 px-2 py-1 text-xs font-semibold text-green-700">✓ YES</span>
+                    <span className="rounded-full bg-green-50 px-2 py-1 text-xs font-semibold text-green-700">YES</span>
                   ) : (
                     <span className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-500">NO</span>
                   )}

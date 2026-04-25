@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -123,7 +124,16 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="mt-8 text-center text-sm text-gray-500">
+          <div className="mt-6 flex items-center justify-between text-sm">
+            <Link href="/register" className="font-medium text-indigo-600 hover:underline">
+              Create account
+            </Link>
+            <Link href="/forgot-password" className="font-medium text-indigo-600 hover:underline">
+              Forgot password?
+            </Link>
+          </div>
+
+          <p className="mt-6 text-center text-sm text-gray-500">
             Secured by <span className="font-semibold text-gray-700">Zetheta</span>
           </p>
         </div>
