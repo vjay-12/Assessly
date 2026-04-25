@@ -22,6 +22,7 @@ from shared.models import (
     Question, SessionResponse, PendingEvaluation,
     Assessment, AssessmentAssignment, EnrollmentStatus
 )
+from shared.email import send_assignment_invite
 from config import settings
 
 app = FastAPI(title="Zetheta API Gateway", version="1.0.0")
@@ -544,8 +545,9 @@ async def create_assignment(
     db.add(test_session)
     await db.commit()
 
-    # Enqueue evaluation placeholder (just log for now)
-    print(f"[ASSIGNMENT] Created for candidate {req.candidate_id} -> assessment {req.assessment_id}")
+    # Send assignment invite email asynchronously
+    import asyncio
+    asyncio.create_task(asyncio.to_thread(send_assignment_invite, candidate.email, candidate.full_name, assessment.title))
 
     return AssignmentResponse(
         id=str(assignment.id),

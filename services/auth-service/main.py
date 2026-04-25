@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.database import get_db
 from shared.models import User, UserRole, TestSession, ApplicationStatus
+from shared.email import send_welcome_email, send_password_reset_email
 from config import settings
 
 app = FastAPI(title="Zetheta Auth Service", version="1.0.0")
@@ -336,6 +337,10 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     access_token = create_access_token(str(user.id), user.role.value)
     refresh_token = create_refresh_token(str(user.id))
 
+    # Send welcome email asynchronously (fire-and-forget via asyncio)
+    import asyncio
+    asyncio.create_task(asyncio.to_thread(send_welcome_email, user.email, user.full_name))
+
     return RegisterResponse(
         user_id=str(user.id),
         email=user.email,
@@ -355,8 +360,9 @@ async def forgot_password(req: ForgotPasswordRequest, db: AsyncSession = Depends
     reset_token = secrets.token_urlsafe(32)
     await redis_client.setex(f"reset:{reset_token}", 3600, str(user.id))
 
-    # TODO: send actual email; for now log it
-    print(f"[EMAIL] Password reset for {req.email}: token={reset_token}")
+    # Send password reset email asynchronously
+    import asyncio
+    asyncio.create_task(asyncio.to_thread(send_password_reset_email, req.email, reset_token))
 
     return ForgotPasswordResponse(message="If the email exists, a reset link has been sent")
 

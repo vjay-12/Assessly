@@ -11,7 +11,8 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.database import AsyncSessionLocal, engine
-from shared.models import Base, TestSession, ApplicationStatus, SessionResponse, Question, PendingEvaluation
+from shared.models import Base, TestSession, ApplicationStatus, SessionResponse, Question, PendingEvaluation, User, Assessment
+from shared.email import send_result_notification
 
 # Configure structlog
 structlog.configure(
@@ -109,6 +110,21 @@ async def process_evaluation(application_id: str, db: AsyncSession, redis_client
     if pending:
         await db.delete(pending)
         await db.commit()
+
+    # 7. Send result notification email
+    try:
+        session_result = await db.execute(select(TestSession).where(TestSession.id == app_uuid))
+        session = session_result.scalar_one_or_none()
+        if session:
+            user_result = await db.execute(select(User).where(User.id == session.candidate_id))
+            user = user_result.scalar_one_or_none()
+            assess_result = await db.execute(select(Assessment).where(Assessment.id == session.assessment_id))
+            assess = assess_result.scalar_one_or_none()
+            if user and assess:
+                import asyncio
+                asyncio.create_task(asyncio.to_thread(send_result_notification, user.email, user.full_name, assess.title, percentage))
+    except Exception as e:
+        logger.warning("email_notification_failed", error=str(e))
 
     logger.info(
         "evaluation_completed",
