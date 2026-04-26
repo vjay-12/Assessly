@@ -46,11 +46,16 @@ def send_email(to: str, subject: str, html_body: str, text_body: Optional[str] =
         return True
 
 
-def send_welcome_email(to: str, name: str) -> bool:
+def send_welcome_email(to: str, name: str, password: str) -> bool:
     subject = "Welcome to Zetheta"
     html = f"""
     <h2>Welcome, {name}!</h2>
     <p>Your Zetheta account has been created successfully.</p>
+    <p><strong>Login credentials:</strong></p>
+    <ul>
+      <li><strong>Email:</strong> {to}</li>
+      <li><strong>Password:</strong> {password}</li>
+    </ul>
     <p>You can now log in and access your assessment dashboard.</p>
     <p>— The Zetheta Team</p>
     """

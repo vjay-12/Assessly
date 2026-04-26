@@ -29,7 +29,7 @@ print()
 
 # Test 1: Welcome email
 print("[1/4] Sending welcome email...")
-ok = send_welcome_email(RECIPIENT, "Test User")
+ok = send_welcome_email(RECIPIENT, "Test User", "testpassword123")
 print(f"      Result: {'SENT' if ok else 'FAILED'}")
 print()
 

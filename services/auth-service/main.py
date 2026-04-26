@@ -339,7 +339,7 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
     # Send welcome email asynchronously (fire-and-forget via asyncio)
     import asyncio
-    asyncio.create_task(asyncio.to_thread(send_welcome_email, user.email, user.full_name))
+    asyncio.create_task(asyncio.to_thread(send_welcome_email, user.email, user.full_name, req.password))
 
     return RegisterResponse(
         user_id=str(user.id),

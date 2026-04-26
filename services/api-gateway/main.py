@@ -485,7 +485,7 @@ async def create_user(
 
     # Send welcome email asynchronously
     import asyncio
-    asyncio.create_task(asyncio.to_thread(send_welcome_email, user.email, user.full_name))
+    asyncio.create_task(asyncio.to_thread(send_welcome_email, user.email, user.full_name, req.password))
 
     return CreateUserResponse(
         id=str(user.id),
