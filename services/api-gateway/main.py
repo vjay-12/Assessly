@@ -475,6 +475,10 @@ async def create_user(
     db.add(user)
     await db.commit()
 
+    # Send welcome email asynchronously
+    import asyncio
+    asyncio.create_task(asyncio.to_thread(send_welcome_email, user.email, user.full_name))
+
     return CreateUserResponse(
         id=str(user.id),
         email=user.email,
@@ -531,7 +535,6 @@ async def create_assignment(
         id=uuid.uuid4(),
         candidate_id=uuid.UUID(req.candidate_id),
         assessment_id=uuid.UUID(req.assessment_id),
-        status=EnrollmentStatus.ASSIGNED,
     )
     db.add(assignment)
 
@@ -553,8 +556,8 @@ async def create_assignment(
         id=str(assignment.id),
         candidate_id=str(assignment.candidate_id),
         assessment_id=str(assignment.assessment_id),
-        status=assignment.status.value,
-        assigned_at=datetime.utcnow(),
+        status="assigned",
+        assigned_at=assignment.assigned_at if assignment.assigned_at else datetime.utcnow(),
     )
 
 
@@ -570,8 +573,8 @@ async def list_assignments(
             id=str(a.id),
             candidate_id=str(a.candidate_id),
             assessment_id=str(a.assessment_id),
-            status=a.status.value,
-            assigned_at=a.assigned_at if hasattr(a, 'assigned_at') and a.assigned_at else datetime.utcnow(),
+            status="assigned",
+            assigned_at=a.assigned_at if a.assigned_at else datetime.utcnow(),
         )
         for a in assignments
     ]
