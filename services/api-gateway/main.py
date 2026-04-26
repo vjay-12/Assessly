@@ -732,11 +732,14 @@ async def create_assessment(
 
     await db.commit()
 
+    # Defensive: SQLAlchemy may return enum or string depending on state
+    diff_val = assessment.difficulty.value if hasattr(assessment.difficulty, 'value') else assessment.difficulty
+
     return ManageAssessmentOut(
         id=str(assessment.id),
         title=assessment.title,
         category=assessment.category,
-        difficulty=assessment.difficulty.value,
+        difficulty=diff_val,
         duration_minutes=assessment.duration_minutes,
         pass_mark=assessment.pass_mark,
         is_published=assessment.is_published,
@@ -761,12 +764,14 @@ async def get_assessment_detail(
     )
     questions = q_result.scalars().all()
 
+    diff_val = assessment.difficulty.value if hasattr(assessment.difficulty, 'value') else assessment.difficulty
+
     return AssessmentDetailOut(
         id=str(assessment.id),
         title=assessment.title,
         description=assessment.description or "",
         category=assessment.category,
-        difficulty=assessment.difficulty.value,
+        difficulty=diff_val,
         duration_minutes=assessment.duration_minutes,
         total_questions=assessment.total_questions,
         pass_mark=assessment.pass_mark,
@@ -831,11 +836,13 @@ async def update_assessment(
 
     await db.commit()
 
+    diff_val = assessment.difficulty.value if hasattr(assessment.difficulty, 'value') else assessment.difficulty
+
     return ManageAssessmentOut(
         id=str(assessment.id),
         title=assessment.title,
         category=assessment.category,
-        difficulty=assessment.difficulty.value,
+        difficulty=diff_val,
         duration_minutes=assessment.duration_minutes,
         pass_mark=assessment.pass_mark,
         is_published=assessment.is_published,
@@ -915,11 +922,13 @@ async def duplicate_assessment(
 
     await db.commit()
 
+    diff_val = new_assessment.difficulty.value if hasattr(new_assessment.difficulty, 'value') else new_assessment.difficulty
+
     return ManageAssessmentOut(
         id=str(new_assessment.id),
         title=new_assessment.title,
         category=new_assessment.category,
-        difficulty=new_assessment.difficulty.value,
+        difficulty=diff_val,
         duration_minutes=new_assessment.duration_minutes,
         pass_mark=new_assessment.pass_mark,
         is_published=new_assessment.is_published,
@@ -958,7 +967,7 @@ async def list_all_assessments(
             id=str(a.id),
             title=a.title,
             category=a.category,
-            difficulty=a.difficulty.value,
+            difficulty=a.difficulty.value if hasattr(a.difficulty, 'value') else a.difficulty,
             duration_minutes=a.duration_minutes,
             pass_mark=a.pass_mark,
             is_published=a.is_published,
