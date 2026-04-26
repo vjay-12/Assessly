@@ -1,3 +1,5 @@
+import './globals.css';
+
 export const metadata = {
   title: 'Zetheta — Candidate Portal',
   description: 'Secure distributed assessment platform',
