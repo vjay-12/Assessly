@@ -301,7 +301,7 @@ function CandidatesContent() {
                 </td>
                 <td className="px-6 py-4">
                   {c.score_percentage !== null ? (
-                    <span className="font-semibold">{c.score_percentage.toFixed(1)}%</span>
+                    <span className="font-semibold">{c.score_percentage != null ? `${c.score_percentage.toFixed(1)}%` : '—'}</span>
                   ) : (
                     <span className="text-gray-400">—</span>
                   )}

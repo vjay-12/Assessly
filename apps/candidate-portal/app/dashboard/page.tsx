@@ -141,7 +141,7 @@ export default function CandidateDashboard() {
             { label: 'Total Assigned', value: String(sessions.length), icon: '📝' },
             { label: 'Completed', value: String(completedCount), icon: '✅' },
             { label: 'Pending', value: String(pendingCount), icon: '⏳' },
-            { label: 'Average Score', value: avgScore > 0 ? `${avgScore.toFixed(1)}%` : '—', icon: '📊' },
+            { label: 'Average Score', value: avgScore > 0 && !isNaN(avgScore) ? `${avgScore.toFixed(1)}%` : '—', icon: '📊' },
           ].map((stat) => (
             <div key={stat.label} className="rounded-2xl bg-white p-6 shadow-sm">
               <div className="text-2xl">{stat.icon}</div>
@@ -164,7 +164,7 @@ export default function CandidateDashboard() {
                 <p>📝 10 Questions</p>
                 <p>⏱ 60 mins</p>
                 {session.score_percentage !== null && (
-                  <p>📊 Score: {session.score_percentage.toFixed(1)}%</p>
+                  <p>📊 Score: {session.score_percentage != null ? `${session.score_percentage.toFixed(1)}%` : 'Pending'}</p>
                 )}
               </div>
               {session.application_status !== 'evaluated' && (

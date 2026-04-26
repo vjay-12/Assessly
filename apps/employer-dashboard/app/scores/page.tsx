@@ -96,7 +96,7 @@ function ScoresContent() {
                         style={{ width: `${s.percentage}%` }}
                       />
                     </div>
-                    <span className="font-semibold">{s.percentage.toFixed(1)}%</span>
+                    <span className="font-semibold">{s.percentage != null ? `${s.percentage.toFixed(1)}%` : '—'}</span>
                   </div>
                 </td>
                 <td className="px-6 py-4">{s.correct_count}</td>
