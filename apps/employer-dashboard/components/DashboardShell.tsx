@@ -5,6 +5,8 @@ import { usePathname, useRouter } from 'next/navigation';
 
 const navItems = [
   { label: 'Overview', href: '/dashboard', icon: '📊' },
+  { label: 'Assessment Builder', href: '/assessment-builder', icon: '✏️' },
+  { label: 'Manage Assessments', href: '/manage-assessments', icon: '📁' },
   { label: 'Candidates', href: '/candidates', icon: '👥' },
   { label: 'Scores', href: '/scores', icon: '🏆' },
   { label: 'Audit Trail', href: '/audit', icon: '📋' },

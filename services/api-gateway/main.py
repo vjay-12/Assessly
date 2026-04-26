@@ -615,3 +615,436 @@ async def get_my_sessions(
         )
         for session, assessment in rows
     ]
+
+
+# ─── Assessment Builder Endpoints ───
+
+class QuestionIn(BaseModel):
+    id: Optional[str] = None
+    question_text: str
+    code_snippet: Optional[str] = ""
+    options: List[str]
+    correct_option: int
+    points: int = 1
+    difficulty: int = 1
+    sort_order: int = 0
+
+
+class AssessmentIn(BaseModel):
+    title: str
+    description: Optional[str] = ""
+    category: str
+    difficulty: str
+    duration_minutes: int
+    pass_mark: int
+    max_attempts: int = 1
+    is_published: bool = False
+    questions: List[QuestionIn]
+
+
+class QuestionOut(BaseModel):
+    id: str
+    question_text: str
+    code_snippet: Optional[str]
+    options: List[str]
+    correct_option: int
+    points: int
+    difficulty: int
+    sort_order: int
+
+
+class AssessmentDetailOut(BaseModel):
+    id: str
+    title: str
+    description: str
+    category: str
+    difficulty: str
+    duration_minutes: int
+    total_questions: int
+    pass_mark: int
+    max_attempts: int
+    is_published: bool
+    created_at: datetime
+    questions: List[QuestionOut]
+
+
+class ManageAssessmentOut(BaseModel):
+    id: str
+    title: str
+    category: str
+    difficulty: str
+    duration_minutes: int
+    pass_mark: int
+    is_published: bool
+    total_questions: int
+    created_at: datetime
+
+
+class BulkAssignRequest(BaseModel):
+    candidate_ids: List[str]
+    due_at: Optional[str] = None
+
+
+class CandidateForAssignmentOut(BaseModel):
+    id: str
+    full_name: str
+    email: str
+    already_assigned: bool
+
+
+@app.post("/api/assessments", response_model=ManageAssessmentOut)
+async def create_assessment(
+    req: AssessmentIn,
+    current_user: User = Depends(require_employer),
+    db: AsyncSession = Depends(get_db)
+):
+    if not req.questions:
+        raise HTTPException(status_code=400, detail="At least one question is required")
+
+    assessment = Assessment(
+        id=uuid.uuid4(),
+        title=req.title,
+        description=req.description or "",
+        category=req.category,
+        difficulty=DifficultyLevel[req.difficulty.upper()],
+        duration_minutes=req.duration_minutes,
+        total_questions=len(req.questions),
+        pass_mark=req.pass_mark,
+        max_attempts=req.max_attempts,
+        is_published=req.is_published,
+        created_by=current_user.id,
+    )
+    db.add(assessment)
+    await db.flush()
+
+    for q in req.questions:
+        db.add(Question(
+            id=uuid.uuid4(),
+            assessment_id=assessment.id,
+            question_text=q.question_text,
+            code_snippet=q.code_snippet or None,
+            options=q.options,
+            correct_option=q.correct_option,
+            points=q.points,
+            difficulty=q.difficulty,
+            sort_order=q.sort_order,
+        ))
+
+    await db.commit()
+
+    return ManageAssessmentOut(
+        id=str(assessment.id),
+        title=assessment.title,
+        category=assessment.category,
+        difficulty=assessment.difficulty.value,
+        duration_minutes=assessment.duration_minutes,
+        pass_mark=assessment.pass_mark,
+        is_published=assessment.is_published,
+        total_questions=assessment.total_questions,
+        created_at=assessment.created_at,
+    )
+
+
+@app.get("/api/assessments/{assessment_id}", response_model=AssessmentDetailOut)
+async def get_assessment_detail(
+    assessment_id: str,
+    current_user: User = Depends(require_employer),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(Assessment).where(Assessment.id == uuid.UUID(assessment_id)))
+    assessment = result.scalar_one_or_none()
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    q_result = await db.execute(
+        select(Question).where(Question.assessment_id == assessment.id).order_by(Question.sort_order)
+    )
+    questions = q_result.scalars().all()
+
+    return AssessmentDetailOut(
+        id=str(assessment.id),
+        title=assessment.title,
+        description=assessment.description or "",
+        category=assessment.category,
+        difficulty=assessment.difficulty.value,
+        duration_minutes=assessment.duration_minutes,
+        total_questions=assessment.total_questions,
+        pass_mark=assessment.pass_mark,
+        max_attempts=assessment.max_attempts,
+        is_published=assessment.is_published,
+        created_at=assessment.created_at,
+        questions=[
+            QuestionOut(
+                id=str(q.id),
+                question_text=q.question_text,
+                code_snippet=q.code_snippet,
+                options=q.options,
+                correct_option=q.correct_option,
+                points=q.points,
+                difficulty=q.difficulty,
+                sort_order=q.sort_order or 0,
+            )
+            for q in questions
+        ],
+    )
+
+
+@app.put("/api/assessments/{assessment_id}", response_model=ManageAssessmentOut)
+async def update_assessment(
+    assessment_id: str,
+    req: AssessmentIn,
+    current_user: User = Depends(require_employer),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(Assessment).where(Assessment.id == uuid.UUID(assessment_id)))
+    assessment = result.scalar_one_or_none()
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    assessment.title = req.title
+    assessment.description = req.description or ""
+    assessment.category = req.category
+    assessment.difficulty = DifficultyLevel[req.difficulty.upper()]
+    assessment.duration_minutes = req.duration_minutes
+    assessment.pass_mark = req.pass_mark
+    assessment.max_attempts = req.max_attempts
+    assessment.is_published = req.is_published
+    assessment.total_questions = len(req.questions)
+
+    # Delete existing questions and recreate
+    await db.execute(
+        Question.__table__.delete().where(Question.assessment_id == assessment.id)
+    )
+
+    for q in req.questions:
+        db.add(Question(
+            id=uuid.uuid4(),
+            assessment_id=assessment.id,
+            question_text=q.question_text,
+            code_snippet=q.code_snippet or None,
+            options=q.options,
+            correct_option=q.correct_option,
+            points=q.points,
+            difficulty=q.difficulty,
+            sort_order=q.sort_order,
+        ))
+
+    await db.commit()
+
+    return ManageAssessmentOut(
+        id=str(assessment.id),
+        title=assessment.title,
+        category=assessment.category,
+        difficulty=assessment.difficulty.value,
+        duration_minutes=assessment.duration_minutes,
+        pass_mark=assessment.pass_mark,
+        is_published=assessment.is_published,
+        total_questions=assessment.total_questions,
+        created_at=assessment.created_at,
+    )
+
+
+@app.delete("/api/assessments/{assessment_id}")
+async def delete_assessment(
+    assessment_id: str,
+    current_user: User = Depends(require_employer),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(Assessment).where(Assessment.id == uuid.UUID(assessment_id)))
+    assessment = result.scalar_one_or_none()
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    # Check for active test sessions
+    active_result = await db.execute(
+        select(TestSession).where(
+            TestSession.assessment_id == assessment.id,
+            TestSession.application_status.in_([ApplicationStatus.ATTEMPTED, ApplicationStatus.SUBMITTED])
+        )
+    )
+    if active_result.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Cannot delete assessment with active sessions")
+
+    await db.delete(assessment)
+    await db.commit()
+    return {"message": "Assessment deleted"}
+
+
+@app.post("/api/assessments/{assessment_id}/duplicate", response_model=ManageAssessmentOut)
+async def duplicate_assessment(
+    assessment_id: str,
+    current_user: User = Depends(require_employer),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(Assessment).where(Assessment.id == uuid.UUID(assessment_id)))
+    source = result.scalar_one_or_none()
+    if not source:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    # Copy assessment
+    new_assessment = Assessment(
+        id=uuid.uuid4(),
+        title=f"{source.title} (Copy)",
+        description=source.description,
+        category=source.category,
+        difficulty=source.difficulty,
+        duration_minutes=source.duration_minutes,
+        total_questions=source.total_questions,
+        pass_mark=source.pass_mark,
+        max_attempts=source.max_attempts,
+        is_published=False,
+        created_by=current_user.id,
+    )
+    db.add(new_assessment)
+    await db.flush()
+
+    # Copy questions
+    q_result = await db.execute(select(Question).where(Question.assessment_id == source.id))
+    for q in q_result.scalars().all():
+        db.add(Question(
+            id=uuid.uuid4(),
+            assessment_id=new_assessment.id,
+            question_text=q.question_text,
+            code_snippet=q.code_snippet,
+            options=q.options,
+            correct_option=q.correct_option,
+            points=q.points,
+            difficulty=q.difficulty,
+            sort_order=q.sort_order,
+        ))
+
+    await db.commit()
+
+    return ManageAssessmentOut(
+        id=str(new_assessment.id),
+        title=new_assessment.title,
+        category=new_assessment.category,
+        difficulty=new_assessment.difficulty.value,
+        duration_minutes=new_assessment.duration_minutes,
+        pass_mark=new_assessment.pass_mark,
+        is_published=new_assessment.is_published,
+        total_questions=new_assessment.total_questions,
+        created_at=new_assessment.created_at,
+    )
+
+
+@app.get("/api/assessments-all", response_model=List[ManageAssessmentOut])
+async def list_all_assessments(
+    current_user: User = Depends(require_employer),
+    db: AsyncSession = Depends(get_db),
+    category: Optional[str] = Query(None),
+    difficulty: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+):
+    query = select(Assessment)
+
+    if category:
+        query = query.where(Assessment.category == category)
+    if difficulty:
+        query = query.where(Assessment.difficulty == DifficultyLevel[difficulty.upper()])
+    if status:
+        is_pub = status.lower() == "published"
+        query = query.where(Assessment.is_published == is_pub)
+    if search:
+        query = query.where(Assessment.title.ilike(f"%{search}%"))
+
+    query = query.order_by(Assessment.created_at.desc())
+    result = await db.execute(query)
+    assessments = result.scalars().all()
+
+    return [
+        ManageAssessmentOut(
+            id=str(a.id),
+            title=a.title,
+            category=a.category,
+            difficulty=a.difficulty.value,
+            duration_minutes=a.duration_minutes,
+            pass_mark=a.pass_mark,
+            is_published=a.is_published,
+            total_questions=a.total_questions,
+            created_at=a.created_at,
+        )
+        for a in assessments
+    ]
+
+
+@app.get("/api/candidates/for-assignment/{assessment_id}", response_model=List[CandidateForAssignmentOut])
+async def get_candidates_for_assignment(
+    assessment_id: str,
+    current_user: User = Depends(require_employer),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(User).where(User.role == UserRole.CANDIDATE))
+    candidates = result.scalars().all()
+
+    # Check existing assignments
+    assign_result = await db.execute(
+        select(AssessmentAssignment.candidate_id).where(
+            AssessmentAssignment.assessment_id == uuid.UUID(assessment_id)
+        )
+    )
+    assigned_ids = {str(row[0]) for row in assign_result.all()}
+
+    return [
+        CandidateForAssignmentOut(
+            id=str(c.id),
+            full_name=c.full_name,
+            email=c.email,
+            already_assigned=str(c.id) in assigned_ids,
+        )
+        for c in candidates
+    ]
+
+
+@app.post("/api/assessments/{assessment_id}/assign-bulk")
+async def bulk_assign_assessment(
+    assessment_id: str,
+    req: BulkAssignRequest,
+    current_user: User = Depends(require_employer),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(Assessment).where(Assessment.id == uuid.UUID(assessment_id)))
+    assessment = result.scalar_one_or_none()
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    assigned_count = 0
+    for candidate_id in req.candidate_ids:
+        # Check if already assigned
+        existing = await db.execute(
+            select(AssessmentAssignment).where(
+                AssessmentAssignment.assessment_id == assessment.id,
+                AssessmentAssignment.candidate_id == uuid.UUID(candidate_id)
+            )
+        )
+        if existing.scalar_one_or_none():
+            continue
+
+        assignment = AssessmentAssignment(
+            id=uuid.uuid4(),
+            assessment_id=assessment.id,
+            candidate_id=uuid.UUID(candidate_id),
+            due_at=datetime.fromisoformat(req.due_at) if req.due_at else None,
+        )
+        db.add(assignment)
+
+        # Create test session
+        test_session = TestSession(
+            id=uuid.uuid4(),
+            candidate_id=uuid.UUID(candidate_id),
+            assessment_id=assessment.id,
+            application_status=ApplicationStatus.APPLIED,
+        )
+        db.add(test_session)
+        assigned_count += 1
+
+        # Send email
+        candidate_result = await db.execute(select(User).where(User.id == uuid.UUID(candidate_id)))
+        candidate = candidate_result.scalar_one_or_none()
+        if candidate:
+            asyncio.create_task(asyncio.to_thread(send_assignment_invite, candidate.email, candidate.full_name, assessment.title))
+
+    await db.commit()
+
+    return {"message": f"Assigned to {assigned_count} candidate(s)", "assigned_count": assigned_count}
