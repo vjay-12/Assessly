@@ -23,7 +23,11 @@ function DashboardContent() {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
-      .then((data) => setFunnel(data));
+      .then((data) => {
+        if (data && typeof data.applied === 'number' && typeof data.attempted === 'number' && typeof data.submitted === 'number' && typeof data.evaluated === 'number') {
+          setFunnel(data);
+        }
+      });
 
     const eventSource = new EventSource(
       `${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/events?token=${encodeURIComponent(token)}`

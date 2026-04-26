@@ -111,7 +111,7 @@ export default function ReviewPage() {
           <div className="mt-6 grid grid-cols-2 gap-4">
             {[
               { label: 'TOTAL QUESTIONS', value: total },
-              { label: 'ANSWERED', value: answered, percent: `${Math.round((answered / total) * 100)}%` },
+              { label: 'ANSWERED', value: answered, percent: total > 0 ? `${Math.round((answered / total) * 100)}%` : '0%' },
               { label: 'UNANSWERED', value: unanswered, warning: unanswered > 0 },
               { label: 'FLAGGED FOR REVIEW', value: flaggedCount },
               { label: 'TIME TAKEN', value: formatTime(timeTaken) },
