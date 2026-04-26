@@ -479,13 +479,33 @@ async def create_user(
     db: AsyncSession = Depends(get_db)
 ):
     import bcrypt
-    # Check duplicate email
-    result = await db.execute(select(User).where(User.email == req.email))
-    if result.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail="Email already exists")
-
     role = UserRole.ADMIN if req.role.lower() == "admin" else UserRole.CANDIDATE
     password_hash = bcrypt.hashpw(req.password.encode(), bcrypt.gensalt()).decode()
+
+    result = await db.execute(select(User).where(User.email == req.email))
+    existing = result.scalar_one_or_none()
+
+    if existing:
+        if existing.is_deleted:
+            # Restore soft-deleted user
+            existing.is_deleted = False
+            existing.full_name = req.full_name
+            existing.password_hash = password_hash
+            existing.role = role
+            existing.is_verified = True
+            await db.commit()
+
+            import asyncio
+            asyncio.create_task(asyncio.to_thread(send_welcome_email, existing.email, existing.full_name, req.password))
+
+            return CreateUserResponse(
+                id=str(existing.id),
+                email=existing.email,
+                full_name=existing.full_name,
+                role=existing.role.value,
+            )
+        else:
+            raise HTTPException(status_code=409, detail="Email already exists")
 
     user = User(
         id=uuid.uuid4(),
