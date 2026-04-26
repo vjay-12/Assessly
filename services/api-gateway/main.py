@@ -154,20 +154,29 @@ class MySessionOut(BaseModel):
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: AsyncSession = Depends(get_db)) -> User:
     if not credentials:
+        print("[AUTH DEBUG] No credentials provided")
         raise HTTPException(status_code=401, detail="Missing authorization header")
     try:
         payload = jwt.decode(credentials.credentials, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
         user_id = payload.get("sub")
         token_type = payload.get("type", "access")
+        print(f"[AUTH DEBUG] Token decoded: user_id={user_id}, type={token_type}")
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token")
-    except JWTError:
+    except JWTError as e:
+        print(f"[AUTH DEBUG] JWT decode failed: {e}")
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
-    user = result.scalar_one_or_none()
-    if not user:
+    try:
+        result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
+        user = result.scalar_one_or_none()
+        print(f"[AUTH DEBUG] DB lookup: user={'found' if user else 'NOT FOUND'}")
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+    except Exception as e:
+        print(f"[AUTH DEBUG] DB lookup failed: {type(e).__name__}: {e}")
         raise HTTPException(status_code=401, detail="User not found")
+
     user.token_type = token_type
     return user
 
