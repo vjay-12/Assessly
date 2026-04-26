@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import DashboardShell from '../../components/DashboardShell';
 
 interface FunnelData {
@@ -14,6 +15,7 @@ function DashboardContent() {
   const [funnel, setFunnel] = useState<FunnelData>({ applied: 0, attempted: 0, submitted: 0, evaluated: 0 });
   const [live, setLive] = useState(false);
   const [activities, setActivities] = useState<any[]>([]);
+  const router = useRouter();
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
@@ -22,7 +24,14 @@ function DashboardContent() {
     fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/analytics/funnel`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((r) => r.json())
+      .then((r) => {
+        if (r.status === 401) {
+          localStorage.clear();
+          router.push('/login');
+          return;
+        }
+        return r.json();
+      })
       .then((data) => {
         if (data && typeof data.applied === 'number' && typeof data.attempted === 'number' && typeof data.submitted === 'number' && typeof data.evaluated === 'number') {
           setFunnel(data);

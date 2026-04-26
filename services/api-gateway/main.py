@@ -698,8 +698,8 @@ async def create_assessment(
     current_user: User = Depends(require_employer),
     db: AsyncSession = Depends(get_db)
 ):
-    if not req.questions:
-        raise HTTPException(status_code=400, detail="At least one question is required")
+    if req.is_published and not req.questions:
+        raise HTTPException(status_code=400, detail="At least one question is required before publishing")
 
     assessment = Assessment(
         id=uuid.uuid4(),

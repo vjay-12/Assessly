@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import DashboardShell from '../../components/DashboardShell';
 
 interface Score {
@@ -17,6 +18,7 @@ function ScoresContent() {
   const [scores, setScores] = useState<Score[]>([]);
   const [loading, setLoading] = useState(true);
   const [minScore, setMinScore] = useState('');
+  const router = useRouter();
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
@@ -29,9 +31,18 @@ function ScoresContent() {
     fetch(url.toString(), {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((r) => r.json())
+      .then((r) => {
+        if (r.status === 401) {
+          localStorage.clear();
+          router.push('/login');
+          return;
+        }
+        return r.json();
+      })
       .then((data) => {
-        setScores(Array.isArray(data) ? data : []);
+        if (data) {
+          setScores(Array.isArray(data) ? data : []);
+        }
         setLoading(false);
       })
       .catch(() => setLoading(false));

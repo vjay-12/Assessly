@@ -29,15 +29,30 @@ function CandidatesContent() {
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
 
+  const router = useRouter();
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : '';
+
+  const handleUnauthorized = (res: Response) => {
+    if (res.status === 401) {
+      localStorage.clear();
+      router.push('/login');
+      return true;
+    }
+    return false;
+  };
 
   const fetchCandidates = () => {
     if (!token) return;
     fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/candidates?limit=100`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((r) => r.json())
-      .then((data) => setCandidates(Array.isArray(data) ? data : []))
+      .then((r) => {
+        if (handleUnauthorized(r)) return;
+        return r.json();
+      })
+      .then((data) => {
+        if (data) setCandidates(Array.isArray(data) ? data : []);
+      })
       .catch(() => {});
   };
 
@@ -46,8 +61,13 @@ function CandidatesContent() {
     fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/assessments`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((r) => r.json())
-      .then((data) => setAssessments(Array.isArray(data) ? data : []))
+      .then((r) => {
+        if (handleUnauthorized(r)) return;
+        return r.json();
+      })
+      .then((data) => {
+        if (data) setAssessments(Array.isArray(data) ? data : []);
+      })
       .catch(() => {});
   };
 
@@ -67,6 +87,7 @@ function CandidatesContent() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(createForm),
       });
+      if (handleUnauthorized(res)) return;
       const data = await res.json();
       if (!res.ok) {
         setFormError(data.detail || 'Failed to create user');
@@ -91,6 +112,7 @@ function CandidatesContent() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(assignForm),
       });
+      if (handleUnauthorized(res)) return;
       const data = await res.json();
       if (!res.ok) {
         setFormError(data.detail || 'Failed to assign assessment');

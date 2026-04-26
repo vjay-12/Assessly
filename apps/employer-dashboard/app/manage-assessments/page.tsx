@@ -41,6 +41,15 @@ function ManageContent() {
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : '';
 
+  const handleUnauthorized = (res: Response) => {
+    if (res.status === 401) {
+      localStorage.clear();
+      router.push('/login');
+      return true;
+    }
+    return false;
+  };
+
   const fetchAssessments = () => {
     if (!token) return;
     const params = new URLSearchParams();
@@ -52,9 +61,14 @@ function ManageContent() {
     fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/assessments-all?${params}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((r) => r.json())
+      .then((r) => {
+        if (handleUnauthorized(r)) return;
+        return r.json();
+      })
       .then((data) => {
-        setAssessments(Array.isArray(data) ? data : []);
+        if (data) {
+          setAssessments(Array.isArray(data) ? data : []);
+        }
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -78,6 +92,7 @@ function ManageContent() {
     const res = await fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/candidates/for-assignment/${assessment.id}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
+    if (handleUnauthorized(res)) return;
     const data = await res.json();
     setCandidates(Array.isArray(data) ? data : []);
   };
@@ -107,6 +122,7 @@ function ManageContent() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ candidate_ids: Array.from(selectedCandidates), due_at: dueDate || null }),
       });
+      if (handleUnauthorized(res)) return;
       const data = await res.json();
       if (res.ok) {
         setToast(`Assigned to ${data.assigned_count} candidate(s)`);
@@ -128,6 +144,7 @@ function ManageContent() {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (handleUnauthorized(res)) return;
       if (res.ok) {
         setToast('Assessment duplicated');
         fetchAssessments();
@@ -147,6 +164,7 @@ function ManageContent() {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (handleUnauthorized(res)) return;
       if (res.ok) {
         setToast('Assessment deleted');
         fetchAssessments();

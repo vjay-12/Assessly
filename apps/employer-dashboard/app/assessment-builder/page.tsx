@@ -164,6 +164,11 @@ function BuilderContent() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(payload),
       });
+      if (res.status === 401) {
+        localStorage.clear();
+        router.push('/login');
+        return;
+      }
       const data = await res.json();
       if (!res.ok) {
         setError(data.detail || 'Save failed');
