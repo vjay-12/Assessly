@@ -298,7 +298,7 @@ async def list_candidates(
 ):
     from sqlalchemy import or_
 
-    query = select(User).where(User.role == UserRole.CANDIDATE)
+    query = select(User).where(User.role == UserRole.CANDIDATE, User.is_deleted == False)
 
     if search:
         query = query.where(
@@ -336,6 +336,21 @@ async def list_candidates(
         ))
 
     return candidates
+
+
+@app.delete("/api/users/{user_id}")
+async def delete_user(
+    user_id: str,
+    current_user: User = Depends(require_employer),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.is_deleted = True
+    await db.commit()
+    return {"detail": "User deleted successfully"}
 
 
 @app.get("/api/scores", response_model=List[ScoreOut])

@@ -29,6 +29,7 @@ function CandidatesContent() {
   const [assignForm, setAssignForm] = useState({ candidate_id: '', assessment_id: '' });
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
+  const [toast, setToast] = useState('');
 
   const router = useRouter();
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : '';
@@ -103,6 +104,27 @@ function CandidatesContent() {
     }
   };
 
+  const handleDeleteUser = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this candidate?')) return;
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/users/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (handleUnauthorized(res)) return;
+      if (res.ok) {
+        setToast('Candidate deleted successfully');
+        fetchCandidates();
+        setTimeout(() => setToast(''), 3000);
+      } else {
+        const data = await res.json();
+        alert(data.detail || 'Delete failed');
+      }
+    } catch {
+      alert('Network error');
+    }
+  };
+
   const handleAssign = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
@@ -151,6 +173,9 @@ function CandidatesContent() {
 
   return (
     <div className="p-6">
+      {toast && (
+        <div className="mb-4 rounded-lg bg-green-50 p-3 text-sm text-green-600">{toast}</div>
+      )}
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Candidates</h1>
@@ -281,19 +306,20 @@ function CandidatesContent() {
               <th className="px-6 py-4">Progress</th>
               <th className="px-6 py-4">Score</th>
               <th className="px-6 py-4">Verified</th>
+              <th className="px-6 py-4">Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={5} className="px-6 py-12 text-center text-gray-400">
+                <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
                   <div className="mx-auto h-6 w-6 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" />
                 </td>
               </tr>
             )}
             {!loading && filtered.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-6 py-12 text-center text-gray-400">
+                <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
                   No candidates found.
                 </td>
               </tr>
@@ -335,6 +361,15 @@ function CandidatesContent() {
                   ) : (
                     <span className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-500">NO</span>
                   )}
+                </td>
+                <td className="px-6 py-4">
+                  <button
+                    onClick={() => handleDeleteUser(c.id)}
+                    className="text-sm text-red-500 hover:text-red-700"
+                    title="Delete candidate"
+                  >
+                    🗑️ Delete
+                  </button>
                 </td>
               </tr>
             ))}

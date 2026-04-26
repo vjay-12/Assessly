@@ -68,6 +68,7 @@ class User(Base):
     role = Column(Enum(UserRole, native_enum=False), default=UserRole.CANDIDATE, nullable=False)
     avatar_url = Column(String(500), nullable=True)
     is_verified = Column(Boolean, default=False, nullable=False)
+    is_deleted = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
