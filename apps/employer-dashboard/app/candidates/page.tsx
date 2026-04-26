@@ -89,8 +89,10 @@ function CandidatesContent() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(createForm),
       });
+      console.log('Create user response status:', res.status);
       if (handleUnauthorized(res)) return;
       const data = await res.json();
+      console.log('Create user response body:', data);
       if (!res.ok) {
         setFormError(data.detail || 'Failed to create user');
         return;
@@ -99,7 +101,8 @@ function CandidatesContent() {
       setCreateForm({ email: '', password: '', full_name: '', role: 'candidate' });
       fetchCandidates();
       setTimeout(() => setShowCreate(false), 1500);
-    } catch {
+    } catch (err) {
+      console.error('Create user error:', err);
       setFormError('Network error');
     }
   };
