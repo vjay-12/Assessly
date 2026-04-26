@@ -34,19 +34,23 @@ export default function CandidateDashboard() {
       return;
     }
 
-    // For demo, load seeded test sessions via a candidate-specific endpoint
-    // Since we don't have a dedicated /api/my-sessions endpoint yet, we use a static demo session
-    setSessions([
-      {
-        id: '11111111-1111-1111-1111-111111111111',
-        assessment_title: 'Full Stack Engineering Assessment',
-        status: 'Assigned',
-        application_status: 'applied',
-        score_percentage: null,
-        due_at: null,
-      },
-    ]);
-    setLoading(false);
+    // Fetch candidate's real test sessions from API Gateway
+    fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/my-sessions`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setSessions(data);
+        } else {
+          setSessions([]);
+        }
+        setLoading(false);
+      })
+      .catch(() => {
+        setSessions([]);
+        setLoading(false);
+      });
   }, [router]);
 
   const startAssessment = async (applicationId: string) => {

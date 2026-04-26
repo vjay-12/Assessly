@@ -142,6 +142,14 @@ class AssessmentOut(BaseModel):
     is_published: bool
 
 
+class MySessionOut(BaseModel):
+    id: str
+    assessment_title: str
+    application_status: str
+    score_percentage: Optional[float]
+    assigned_at: Optional[datetime]
+
+
 # ─── Auth Helpers ───
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: AsyncSession = Depends(get_db)) -> User:
@@ -577,4 +585,33 @@ async def list_assignments(
             assigned_at=a.assigned_at if a.assigned_at else datetime.utcnow(),
         )
         for a in assignments
+    ]
+
+
+@app.get("/api/my-sessions", response_model=List[MySessionOut])
+async def get_my_sessions(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Return the current candidate's test sessions with assessment details."""
+    if current_user.role != UserRole.CANDIDATE:
+        raise HTTPException(status_code=403, detail="Candidate access only")
+
+    result = await db.execute(
+        select(TestSession, Assessment)
+        .join(Assessment, TestSession.assessment_id == Assessment.id)
+        .where(TestSession.candidate_id == current_user.id)
+        .order_by(TestSession.created_at.desc())
+    )
+    rows = result.all()
+
+    return [
+        MySessionOut(
+            id=str(session.id),
+            assessment_title=assessment.title,
+            application_status=session.application_status.value,
+            score_percentage=session.score_percentage,
+            assigned_at=session.created_at,
+        )
+        for session, assessment in rows
     ]
