@@ -328,7 +328,14 @@ async def submit_assessment(
     test_session.application_status = ApplicationStatus.SUBMITTED
     test_session.submitted_at = datetime.utcnow()
     if test_session.started_at:
-        delta = test_session.submitted_at - test_session.started_at
+        submitted = test_session.submitted_at
+        started = test_session.started_at
+        # Normalize timezone-aware vs naive datetimes
+        if submitted.tzinfo is not None and started.tzinfo is None:
+            submitted = submitted.replace(tzinfo=None)
+        elif started.tzinfo is not None and submitted.tzinfo is None:
+            started = started.replace(tzinfo=None)
+        delta = submitted - started
         test_session.time_taken_seconds = int(delta.total_seconds())
     test_session.total_answered = len(req.answers)
     await db.commit()
