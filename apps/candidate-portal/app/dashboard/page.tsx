@@ -19,7 +19,7 @@ export default function CandidateDashboard() {
   const [user, setUser] = useState<{ full_name: string; email: string; role: string } | null>(null);
   const [sessions, setSessions] = useState<TestSession[]>([]);
   const [loading, setLoading] = useState(true);
-  const [starting, setStarting] = useState(false);
+  const [startingId, setStartingId] = useState<string | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
@@ -68,7 +68,7 @@ export default function CandidateDashboard() {
     const token = localStorage.getItem('access_token');
     if (!token) return;
 
-    setStarting(true);
+    setStartingId(applicationId);
 
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_AUTH_SERVICE_URL}/auth/cross-app-token`, {
@@ -87,11 +87,11 @@ export default function CandidateDashboard() {
         window.location.href = assessmentUrl;
       } else {
         alert(data.detail || 'Failed to start assessment');
-        setStarting(false);
+        setStartingId(null);
       }
     } catch {
       alert('Network error');
-      setStarting(false);
+      setStartingId(null);
     }
   };
 
@@ -181,10 +181,10 @@ export default function CandidateDashboard() {
               {session.application_status !== 'evaluated' && (
                 <button
                   onClick={() => startAssessment(session.id)}
-                  disabled={starting}
+                  disabled={startingId === session.id}
                   className="mt-4 w-full rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
                 >
-                  {starting ? 'Starting...' : session.application_status === 'applied' ? 'Start Assessment' : 'Continue Assessment'}
+                  {startingId === session.id ? 'Starting...' : session.application_status === 'applied' ? 'Start Assessment' : 'Continue Assessment'}
                 </button>
               )}
             </div>
