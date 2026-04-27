@@ -10,6 +10,7 @@ import os
 import threading
 import time
 import signal
+import platform
 
 # Color codes for terminal output
 COLORS = {
@@ -23,6 +24,35 @@ COLORS = {
 
 # Use conda env Python (has all dependencies like email-validator)
 PYTHON_EXE = r"C:\Users\vijay\anaconda3\envs\zetheta\python.exe"
+
+
+def kill_orphans():
+    """Kill any processes already listening on our target ports."""
+    ports = [3000, 3001, 4000, 4001, 4002]
+    if platform.system() == "Windows":
+        for port in ports:
+            try:
+                result = subprocess.run(
+                    ["powershell", "-Command",
+                     f"Get-NetTCPConnection -LocalPort {port} -ErrorAction SilentlyContinue | ForEach-Object {{ Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }}"],
+                    capture_output=True, text=True, timeout=10
+                )
+            except Exception:
+                pass
+    else:
+        for port in ports:
+            try:
+                result = subprocess.run(
+                    ["lsof", "-ti", f":{port}"],
+                    capture_output=True, text=True, timeout=5
+                )
+                if result.stdout.strip():
+                    pids = result.stdout.strip().split("\n")
+                    for pid in pids:
+                        subprocess.run(["kill", "-9", pid], capture_output=True, timeout=5)
+            except Exception:
+                pass
+
 
 SERVICES = [
     {
@@ -138,6 +168,10 @@ if __name__ == "__main__":
     else:
         signal.signal(signal.SIGINT, shutdown)
         signal.signal(signal.SIGTERM, shutdown)
+
+    print("[MANAGER] Cleaning up orphaned processes...")
+    kill_orphans()
+    time.sleep(1)
 
     print("=" * 60)
     print("  Assessly Platform - Starting all services")
