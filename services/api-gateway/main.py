@@ -71,13 +71,24 @@ class SubmissionResponse(BaseModel):
     status: str
     application_id: str
     message: str
+    submitted_at: Optional[str] = None
+    time_taken_seconds: Optional[int] = None
 
 
-class QuestionOut(BaseModel):
+class CandidateQuestionOut(BaseModel):
     id: str
     question_text: str
+    code_snippet: Optional[str] = None
     options: List[str]
+    points: int = 1
     difficulty: int
+    sort_order: int = 0
+
+
+class AssessmentInfoOut(BaseModel):
+    title: str
+    duration_minutes: int
+    total_questions: int
 
 
 class CandidateOut(BaseModel):
@@ -235,6 +246,39 @@ async def get_assessment_session(credentials: HTTPAuthorizationCredentials = Dep
         raise HTTPException(status_code=401, detail="Invalid session token")
 
 
+async def get_user_or_session(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db)
+) -> tuple[Optional[User], Optional[dict]]:
+    """Try access token first, then fall back to assessment session token."""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Missing authorization header")
+    
+    # Try access token first
+    try:
+        payload = jwt.decode(credentials.credentials, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        token_type = payload.get("type", "access")
+        if token_type == "access":
+            user_id = payload.get("sub")
+            if user_id:
+                result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
+                user = result.scalar_one_or_none()
+                if user:
+                    return user, None
+    except JWTError:
+        pass
+    
+    # Fall back to assessment session token
+    try:
+        payload = jwt.decode(credentials.credentials, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        if payload.get("type") == "assessment_session":
+            return None, payload
+    except JWTError:
+        pass
+    
+    raise HTTPException(status_code=401, detail="Invalid token")
+
+
 # ─── Endpoints ───
 
 @app.get("/health")
@@ -242,7 +286,7 @@ async def health():
     return {"status": "ok", "service": "api-gateway"}
 
 
-@app.get("/api/questions", response_model=List[QuestionOut])
+@app.get("/api/questions", response_model=List[CandidateQuestionOut])
 async def get_questions(session: dict = Depends(get_assessment_session), db: AsyncSession = Depends(get_db)):
     # Session token contains application_id (TestSession ID), not assessment_id
     application_id = session.get("application_id")
@@ -264,18 +308,44 @@ async def get_questions(session: dict = Depends(get_assessment_session), db: Asy
     )
     questions = result.scalars().all()
     return [
-        QuestionOut(
+        CandidateQuestionOut(
             id=str(q.id),
             question_text=q.question_text,
             code_snippet=q.code_snippet,
             options=q.options,
-            correct_option=q.correct_option,
             points=q.points,
             difficulty=q.difficulty,
             sort_order=q.sort_order
         )
         for q in questions
     ]
+
+
+@app.get("/api/assessment-info", response_model=AssessmentInfoOut)
+async def get_assessment_info(session: dict = Depends(get_assessment_session), db: AsyncSession = Depends(get_db)):
+    application_id = session.get("application_id")
+    if not application_id:
+        raise HTTPException(status_code=400, detail="Missing application_id in session")
+
+    ts_result = await db.execute(
+        select(TestSession).where(TestSession.id == uuid.UUID(application_id))
+    )
+    test_session = ts_result.scalar_one_or_none()
+    if not test_session:
+        raise HTTPException(status_code=404, detail="Test session not found")
+
+    assess_result = await db.execute(
+        select(Assessment).where(Assessment.id == test_session.assessment_id)
+    )
+    assessment = assess_result.scalar_one_or_none()
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    return AssessmentInfoOut(
+        title=assessment.title,
+        duration_minutes=assessment.duration_minutes,
+        total_questions=assessment.total_questions,
+    )
 
 
 @app.post("/api/submissions", response_model=SubmissionResponse)
@@ -382,7 +452,9 @@ async def submit_assessment(
     return SubmissionResponse(
         status="submitted",
         application_id=str(application_id),
-        message="Assessment submitted successfully. Evaluation in progress."
+        message="Assessment submitted successfully. Evaluation in progress.",
+        submitted_at=test_session.submitted_at.isoformat() if test_session.submitted_at else None,
+        time_taken_seconds=test_session.time_taken_seconds,
     )
 
 
@@ -556,9 +628,11 @@ async def events_stream(token: Optional[str] = Query(None)):
 @app.get("/api/submissions/{application_id}")
 async def get_submission_status(
     application_id: str,
-    current_user: User = Depends(get_current_user),
+    user_session: tuple[Optional[User], Optional[dict]] = Depends(get_user_or_session),
     db: AsyncSession = Depends(get_db)
 ):
+    current_user, session_payload = user_session
+
     result = await db.execute(
         select(TestSession).where(TestSession.id == uuid.UUID(application_id))
     )
@@ -566,9 +640,14 @@ async def get_submission_status(
     if not test_session:
         raise HTTPException(status_code=404, detail="Test session not found")
 
-    # Verify ownership (candidate can only see their own)
-    if current_user.role == UserRole.CANDIDATE and test_session.candidate_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    # If using assessment session token, verify application_id matches
+    if session_payload:
+        if str(session_payload.get("application_id")) != application_id:
+            raise HTTPException(status_code=403, detail="Session does not match application")
+    else:
+        # Verify ownership for access token (candidate can only see their own)
+        if current_user.role == UserRole.CANDIDATE and test_session.candidate_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied")
 
     score_data = None
     if test_session.application_status == ApplicationStatus.EVALUATED:

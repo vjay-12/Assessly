@@ -24,6 +24,7 @@ export default function ReviewPage() {
   const [flagged, setFlagged] = useState<Set<string>>(new Set());
   const [questions, setQuestions] = useState<Question[]>([]);
   const [timeLeft, setTimeLeft] = useState(0);
+  const [totalDuration, setTotalDuration] = useState(30 * 60);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -32,6 +33,7 @@ export default function ReviewPage() {
     const flg = localStorage.getItem('assessment_flagged');
     const qs = localStorage.getItem('assessment_questions');
     const tl = localStorage.getItem('assessment_time_left');
+    const dur = localStorage.getItem('assessment_duration');
 
     if (!sess || !ans || !qs) {
       router.push('/assessment');
@@ -43,6 +45,7 @@ export default function ReviewPage() {
     setFlagged(new Set(JSON.parse(flg || '[]')));
     setQuestions(JSON.parse(qs));
     setTimeLeft(Number(tl || 0));
+    setTotalDuration(Number(dur || 30 * 60));
     setLoading(false);
   }, [router]);
 
@@ -67,6 +70,9 @@ export default function ReviewPage() {
       const data = await res.json();
       if (res.ok) {
         localStorage.setItem('assessment_submission', JSON.stringify(data));
+        if (session?.application_id) {
+          localStorage.removeItem(`assessment_start_time_${session.application_id}`);
+        }
         router.push('/assessment/results');
       } else {
         alert(data.detail || 'Submission failed');
@@ -82,7 +88,7 @@ export default function ReviewPage() {
   const answered = Object.keys(answers).length;
   const unanswered = total - answered;
   const flaggedCount = flagged.size;
-  const timeTaken = 30 * 60 - timeLeft;
+  const timeTaken = totalDuration - timeLeft;
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60);
     const sec = s % 60;

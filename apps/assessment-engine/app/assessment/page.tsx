@@ -6,6 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 interface Question {
   id: string;
   question_text: string;
+  code_snippet?: string;
   options: string[];
   difficulty: number;
 }
@@ -14,6 +15,12 @@ interface SessionData {
   session_token: string;
   candidate_id: string;
   application_id: string;
+}
+
+interface AssessmentInfo {
+  title: string;
+  duration_minutes: number;
+  total_questions: number;
 }
 
 function AssessmentContent() {
@@ -27,6 +34,7 @@ function AssessmentContent() {
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [flagged, setFlagged] = useState<Set<string>>(new Set());
   const [timeLeft, setTimeLeft] = useState(30 * 60);
+  const [assessmentInfo, setAssessmentInfo] = useState<AssessmentInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -50,13 +58,40 @@ function AssessmentContent() {
           return;
         }
         setSession(data);
-        return fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/questions`, {
-          headers: { Authorization: `Bearer ${data.session_token}` },
-        });
+        const headers = { Authorization: `Bearer ${data.session_token}` };
+        return Promise.all([
+          fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/questions`, { headers }).then((r) => r.json()),
+          fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/assessment-info`, { headers }).then((r) => r.json()),
+        ]);
       })
-      .then((r) => r?.json())
-      .then((data) => {
-        setQuestions(data || []);
+      .then(([questionsData, infoData]) => {
+        setQuestions(questionsData || []);
+        if (infoData?.duration_minutes) {
+          setAssessmentInfo(infoData);
+          const durationSeconds = infoData.duration_minutes * 60;
+          localStorage.setItem('assessment_duration', String(durationSeconds));
+
+          // Calculate remaining time based on when assessment was first loaded
+          const appId = session?.application_id;
+          const startKey = appId ? `assessment_start_time_${appId}` : null;
+          const storedStart = startKey ? localStorage.getItem(startKey) : null;
+
+          if (storedStart) {
+            const elapsed = Math.floor((Date.now() - Number(storedStart)) / 1000);
+            const remaining = Math.max(0, durationSeconds - elapsed);
+            if (remaining <= 0) {
+              setError('Assessment time has expired. Please contact support.');
+              setLoading(false);
+              return;
+            }
+            setTimeLeft(remaining);
+          } else {
+            setTimeLeft(durationSeconds);
+            if (startKey) {
+              localStorage.setItem(startKey, String(Date.now()));
+            }
+          }
+        }
         setLoading(false);
       })
       .catch(() => {
@@ -100,6 +135,7 @@ function AssessmentContent() {
     localStorage.setItem('assessment_flagged', JSON.stringify([...flagged]));
     localStorage.setItem('assessment_questions', JSON.stringify(questions));
     localStorage.setItem('assessment_time_left', String(timeLeft));
+    localStorage.setItem('assessment_title', assessmentInfo?.title || 'Assessment');
     router.push('/assessment/review');
   };
 
@@ -143,7 +179,7 @@ function AssessmentContent() {
       <div className="flex flex-1 flex-col">
         <div className="flex items-center justify-between border-b bg-white px-8 py-4">
           <div className="text-sm text-gray-500">
-            Assessly Assessment Engine <span className="mx-2">|</span> <span className="font-semibold text-gray-800">Distributed Systems</span>
+            Assessly Assessment Engine <span className="mx-2">|</span> <span className="font-semibold text-gray-800">{assessmentInfo?.title || 'Assessment'}</span>
           </div>
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2 rounded-lg bg-slate-100 px-4 py-2 text-sm font-mono font-semibold">
@@ -161,6 +197,11 @@ function AssessmentContent() {
               QUESTION {currentIndex + 1}
             </div>
             <h2 className="text-xl font-semibold leading-relaxed">{currentQuestion?.question_text}</h2>
+            {currentQuestion?.code_snippet && (
+              <pre className="mt-4 overflow-x-auto rounded-lg bg-slate-900 p-4 text-sm text-slate-100">
+                <code>{currentQuestion.code_snippet}</code>
+              </pre>
+            )}
 
             <div className="mt-6 space-y-3">
               {currentQuestion?.options.map((opt, idx) => (

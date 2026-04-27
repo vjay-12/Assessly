@@ -353,21 +353,26 @@ async def redeem_cross_app_token(req: RedeemTokenRequest, db: AsyncSession = Dep
         select(TestSession).where(TestSession.id == uuid.UUID(payload["application_id"]))
     )
     session = result.scalar_one_or_none()
-    if session and session.application_status == ApplicationStatus.APPLIED:
+    if session and session.application_status not in [
+        ApplicationStatus.SUBMITTED,
+        ApplicationStatus.EVALUATED,
+    ]:
+        was_first_attempt = session.application_status == ApplicationStatus.APPLIED
         session.application_status = ApplicationStatus.ATTEMPTED
         session.started_at = datetime.utcnow()
         await db.commit()
 
-        # Log assessment started
-        db.add(AuditLog(
-            user_id=uuid.UUID(payload["candidate_id"]),
-            event_type=AuditEventType.ASSESSMENT_STARTED,
-            category=AuditEventCategory.ASSESSMENT_CANDIDATE,
-            severity=SeverityLevel.INFORMATIONAL,
-            assessment_id=session.assessment_id,
-            details=f"Assessment started. Session: {payload['application_id']}",
-        ))
-        await db.commit()
+        if was_first_attempt:
+            # Log assessment started only on first entry
+            db.add(AuditLog(
+                user_id=uuid.UUID(payload["candidate_id"]),
+                event_type=AuditEventType.ASSESSMENT_STARTED,
+                category=AuditEventCategory.ASSESSMENT_CANDIDATE,
+                severity=SeverityLevel.INFORMATIONAL,
+                assessment_id=session.assessment_id,
+                details=f"Assessment started. Session: {payload['application_id']}",
+            ))
+            await db.commit()
 
     return RedeemTokenResponse(
         session_token=session_token,

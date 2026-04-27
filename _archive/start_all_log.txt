@@ -1,0 +1,128 @@
+
+> zetheta-platform@1.0.0 start:all
+> concurrently --names AUTH,GATEWAY,CANDIDATE,ASSESSMENT,EMPLOYER --prefix-colors blue,green,yellow,magenta,cyan "C:\\Users\\vijay\\anaconda3\\envs\\zetheta\\python.exe run_auth.py" "C:\\Users\\vijay\\anaconda3\\envs\\zetheta\\python.exe run_gateway.py" "cd apps/candidate-portal && npm run dev" "cd apps/assessment-engine && npm run dev" "cd apps/employer-dashboard && npm run dev"
+
+(node:30264) [DEP0060] DeprecationWarning: The `util._extend` API is deprecated. Please use Object.assign() instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[CANDIDATE] 
+[CANDIDATE] > @zetheta/candidate-portal@1.0.0 dev
+[CANDIDATE] > next dev -p 4000
+[CANDIDATE] 
+[ASSESSMENT] 
+[ASSESSMENT] > @zetheta/assessment-engine@1.0.0 dev
+[ASSESSMENT] > next dev -p 4001
+[ASSESSMENT] 
+[EMPLOYER] 
+[EMPLOYER] > @zetheta/employer-dashboard@1.0.0 dev
+[EMPLOYER] > next dev -p 4002
+[EMPLOYER] 
+[EMPLOYER]   ▲ Next.js 15.0.0
+[EMPLOYER]   - Local:        http://localhost:4002
+[EMPLOYER]   - Environments: .env.local
+[EMPLOYER] 
+[EMPLOYER]  ✓ Starting...
+[CANDIDATE]   ▲ Next.js 15.0.0
+[CANDIDATE]   - Local:        http://localhost:4000
+[CANDIDATE]   - Environments: .env.local
+[CANDIDATE] 
+[CANDIDATE]  ✓ Starting...
+[ASSESSMENT]   ▲ Next.js 15.0.0
+[ASSESSMENT]   - Local:        http://localhost:4001
+[ASSESSMENT]   - Environments: .env.local
+[ASSESSMENT] 
+[ASSESSMENT]  ✓ Starting...
+[AUTH] INFO:     Started server process [24896]
+[AUTH] INFO:     Waiting for application startup.
+[AUTH] INFO:     Application startup complete.
+[AUTH] INFO:     Uvicorn running on http://0.0.0.0:3001 (Press CTRL+C to quit)
+[GATEWAY] INFO:     Started server process [20992]
+[GATEWAY] INFO:     Waiting for application startup.
+[GATEWAY] INFO:     Application startup complete.
+[GATEWAY] INFO:     Uvicorn running on http://0.0.0.0:3000 (Press CTRL+C to quit)
+[EMPLOYER]  ✓ Ready in 3.8s
+[CANDIDATE]  ✓ Ready in 3.8s
+[ASSESSMENT]  ✓ Ready in 3.8s
+[AUTH] INFO:     127.0.0.1:65443 - "GET /health HTTP/1.1" 200 OK
+[GATEWAY] INFO:     127.0.0.1:53220 - "GET /health HTTP/1.1" 200 OK
+[CANDIDATE]  ○ Compiling / ...
+[CANDIDATE]  ✓ Compiled / in 1645ms (529 modules)
+[CANDIDATE]  GET / 307 in 2153ms
+[CANDIDATE]  ○ Compiling /login ...
+[CANDIDATE]  ✓ Compiled /login in 1582ms (593 modules)
+[CANDIDATE]  GET /login 200 in 1785ms
+[ASSESSMENT]  ○ Compiling / ...
+[ASSESSMENT]  ✓ Compiled / in 5s (543 modules)
+[EMPLOYER]  ○ Compiling / ...
+[EMPLOYER]  ✓ Compiled / in 1731ms (529 modules)
+[EMPLOYER]  GET / 307 in 2281ms
+[EMPLOYER]  ○ Compiling /login ...
+[EMPLOYER]  ✓ Compiled /login in 1305ms (542 modules)
+[EMPLOYER]  GET /login 200 in 1600ms
+[ASSESSMENT]  GET / 307 in 63ms
+[ASSESSMENT]  ○ Compiling /assessment ...
+[ASSESSMENT]  ✓ Compiled /assessment in 814ms (556 modules)
+[ASSESSMENT]  GET /assessment 200 in 996ms
+[AUTH] INFO:     127.0.0.1:53285 - "GET /health HTTP/1.1" 200 OK
+[AUTH] INFO:     127.0.0.1:52988 - "POST /auth/login HTTP/1.1" 200 OK
+[AUTH] INFO:     127.0.0.1:58481 - "GET /auth/verify HTTP/1.1" 200 OK
+[AUTH] INFO:     127.0.0.1:59035 - "POST /auth/refresh HTTP/1.1" 200 OK
+[AUTH] INFO:     127.0.0.1:51785 - "POST /auth/login HTTP/1.1" 200 OK
+[AUTH] INFO:     127.0.0.1:64595 - "POST /auth/register HTTP/1.1" 200 OK
+[AUTH] INFO:     127.0.0.1:52395 - "POST /auth/forgot-password HTTP/1.1" 200 OK
+[GATEWAY] [AUTH DEBUG] Token decoded: user_id=6a3ad8da-3973-4d46-9934-c6bc56992c8c, type=access
+[GATEWAY] [AUTH DEBUG] DB lookup: user=found
+[GATEWAY] INFO:     127.0.0.1:62575 - "POST /api/users HTTP/1.1" 200 OK
+[GATEWAY] [AUTH DEBUG] Token decoded: user_id=6a3ad8da-3973-4d46-9934-c6bc56992c8c, type=access
+[GATEWAY] [AUTH DEBUG] DB lookup: user=found
+[GATEWAY] INFO:     127.0.0.1:50968 - "GET /api/candidates HTTP/1.1" 200 OK
+[GATEWAY] [AUTH DEBUG] Token decoded: user_id=6a3ad8da-3973-4d46-9934-c6bc56992c8c, type=access
+[GATEWAY] [AUTH DEBUG] DB lookup: user=found
+[GATEWAY] INFO:     127.0.0.1:62347 - "GET /api/candidates/for-assignment/00000000-0000-0000-0000-000000000001 HTTP/1.1" 200 OK
+[GATEWAY] [AUTH DEBUG] Token decoded: user_id=6a3ad8da-3973-4d46-9934-c6bc56992c8c, type=access
+[GATEWAY] [AUTH DEBUG] DB lookup: user=found
+[GATEWAY] INFO:     127.0.0.1:59834 - "DELETE /api/users/0f780eb5-36b8-4e81-acc1-5fbf7b8541c4 HTTP/1.1" 200 OK
+[GATEWAY] [AUTH DEBUG] Token decoded: user_id=6a3ad8da-3973-4d46-9934-c6bc56992c8c, type=access
+[GATEWAY] [AUTH DEBUG] DB lookup: user=found
+[GATEWAY] INFO:     127.0.0.1:52859 - "POST /api/users HTTP/1.1" 200 OK
+[GATEWAY] [AUTH DEBUG] Token decoded: user_id=6a3ad8da-3973-4d46-9934-c6bc56992c8c, type=access
+[GATEWAY] [AUTH DEBUG] DB lookup: user=found
+[GATEWAY] INFO:     127.0.0.1:56629 - "POST /api/users HTTP/1.1" 409 Conflict
+[GATEWAY] [AUTH DEBUG] Token decoded: user_id=6a3ad8da-3973-4d46-9934-c6bc56992c8c, type=access
+[GATEWAY] [AUTH DEBUG] DB lookup: user=found
+[GATEWAY] INFO:     127.0.0.1:51873 - "GET /api/assessments HTTP/1.1" 200 OK
+[GATEWAY] [AUTH DEBUG] Token decoded: user_id=6a3ad8da-3973-4d46-9934-c6bc56992c8c, type=access
+[GATEWAY] [AUTH DEBUG] DB lookup: user=found
+[GATEWAY] INFO:     127.0.0.1:55246 - "GET /api/assessments-all HTTP/1.1" 200 OK
+[GATEWAY] [AUTH DEBUG] Token decoded: user_id=6a3ad8da-3973-4d46-9934-c6bc56992c8c, type=access
+[GATEWAY] [AUTH DEBUG] DB lookup: user=found
+[GATEWAY] INFO:     127.0.0.1:63041 - "GET /api/assessments/4c5143b1-9552-4d38-8e31-b1416a2be7e2 HTTP/1.1" 200 OK
+[GATEWAY] [AUTH DEBUG] Token decoded: user_id=6a3ad8da-3973-4d46-9934-c6bc56992c8c, type=access
+[GATEWAY] [AUTH DEBUG] DB lookup: user=found
+[GATEWAY] INFO:     127.0.0.1:64423 - "POST /api/assessments HTTP/1.1" 200 OK
+[GATEWAY] [AUTH DEBUG] Token decoded: user_id=6a3ad8da-3973-4d46-9934-c6bc56992c8c, type=access
+[GATEWAY] [AUTH DEBUG] DB lookup: user=found
+[GATEWAY] INFO:     127.0.0.1:57055 - "PUT /api/assessments/87a37bc8-7f24-4b24-8722-48d19a64dd44 HTTP/1.1" 200 OK
+[GATEWAY] [AUTH DEBUG] Token decoded: user_id=6a3ad8da-3973-4d46-9934-c6bc56992c8c, type=access
+[GATEWAY] [AUTH DEBUG] DB lookup: user=found
+[GATEWAY] INFO:     127.0.0.1:50400 - "POST /api/assessments/87a37bc8-7f24-4b24-8722-48d19a64dd44/duplicate HTTP/1.1" 200 OK
+[GATEWAY] [AUTH DEBUG] Token decoded: user_id=6a3ad8da-3973-4d46-9934-c6bc56992c8c, type=access
+[GATEWAY] [AUTH DEBUG] DB lookup: user=found
+[GATEWAY] INFO:     127.0.0.1:53688 - "DELETE /api/assessments/87a37bc8-7f24-4b24-8722-48d19a64dd44 HTTP/1.1" 200 OK
+[GATEWAY] [AUTH DEBUG] Token decoded: user_id=6a3ad8da-3973-4d46-9934-c6bc56992c8c, type=access
+[GATEWAY] [AUTH DEBUG] DB lookup: user=found
+[GATEWAY] INFO:     127.0.0.1:55399 - "GET /api/assignments HTTP/1.1" 200 OK
+[GATEWAY] [AUTH DEBUG] Token decoded: user_id=bce0b5e5-c780-48d2-8d0f-edc02bc7d152, type=access
+[GATEWAY] [AUTH DEBUG] DB lookup: user=found
+[GATEWAY] INFO:     127.0.0.1:59990 - "GET /api/my-sessions HTTP/1.1" 200 OK
+[GATEWAY] [AUTH DEBUG] Token decoded: user_id=6a3ad8da-3973-4d46-9934-c6bc56992c8c, type=access
+[GATEWAY] [AUTH DEBUG] DB lookup: user=found
+[GATEWAY] INFO:     127.0.0.1:51498 - "GET /api/analytics/funnel HTTP/1.1" 200 OK
+[GATEWAY] [AUTH DEBUG] Token decoded: user_id=6a3ad8da-3973-4d46-9934-c6bc56992c8c, type=access
+[GATEWAY] [AUTH DEBUG] DB lookup: user=found
+[GATEWAY] INFO:     127.0.0.1:62141 - "GET /api/scores HTTP/1.1" 200 OK
+[GATEWAY] INFO:     127.0.0.1:63373 - "GET /api/questions HTTP/1.1" 401 Unauthorized
+[ASSESSMENT] [?25h
+[ASSESSMENT] cd apps/assessment-engine && npm run dev exited with code 0
+[CANDIDATE] [?25h
+[CANDIDATE] cd apps/candidate-portal && npm run dev exited with code 0
+[EMPLOYER] cd apps/employer-dashboard && npm run dev exited with code 4294967295

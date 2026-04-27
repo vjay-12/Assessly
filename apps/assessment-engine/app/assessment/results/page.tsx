@@ -20,30 +20,38 @@ export default function ResultsPage() {
 
   useEffect(() => {
     const sub = localStorage.getItem('assessment_submission');
+    const sess = localStorage.getItem('assessment_session');
     if (sub) {
       const parsed = JSON.parse(sub);
       setSubmission(parsed);
-      // Fetch actual score data
-      fetchScore(parsed.application_id);
+      // Fetch actual score data using assessment session token
+      const session = sess ? JSON.parse(sess) : null;
+      fetchScore(parsed.application_id, session?.session_token);
     } else {
       setLoading(false);
     }
   }, []);
 
-  const fetchScore = async (applicationId: string) => {
-    const token = localStorage.getItem('access_token');
-    if (!token || !applicationId) {
+  const fetchScore = async (applicationId: string, sessionToken?: string) => {
+    if (!sessionToken || !applicationId) {
       setLoading(false);
       return;
     }
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/submissions/${applicationId}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${sessionToken}` },
       });
       if (res.ok) {
         const data = await res.json();
         if (data.score) {
           setScore(data.score);
+        } else if (data.time_taken_seconds != null) {
+          // Store basic submission info even if not evaluated yet
+          setSubmission((prev: any) => ({
+            ...prev,
+            time_taken_seconds: data.time_taken_seconds,
+            submitted_at: data.submitted_at,
+          }));
         }
       }
     } catch {
@@ -141,12 +149,17 @@ export default function ResultsPage() {
           <div className="mt-8 flex gap-4">
             <button
               onClick={() => {
+                const appId = submission?.application_id;
                 localStorage.removeItem('assessment_session');
                 localStorage.removeItem('assessment_answers');
                 localStorage.removeItem('assessment_flagged');
                 localStorage.removeItem('assessment_questions');
                 localStorage.removeItem('assessment_time_left');
                 localStorage.removeItem('assessment_submission');
+                localStorage.removeItem('assessment_duration');
+                if (appId) {
+                  localStorage.removeItem(`assessment_start_time_${appId}`);
+                }
                 window.location.href = process.env.NEXT_PUBLIC_CANDIDATE_PORTAL_URL || '/';
               }}
               className="flex-1 rounded-lg bg-indigo-600 py-3 font-semibold text-white hover:bg-indigo-700"
