@@ -397,21 +397,8 @@ Assessment Engine
 docker compose up
 ```
 
-### Cloud Deployment - (Optional)
-See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** for the complete guide using:
-- **Neon PostgreSQL** (cloud database)
-- **Upstash Redis** (cloud queue/cache)
-- **Railway** (backend services)
-- **Vercel** (frontend apps)
-
-| Service | What You Need | Where to Get It |
-|---------|--------------|-----------------|
-| Database | `DATABASE_URL` | [neon.tech](https://neon.tech) → Create Project → Copy connection string |
-| Cache/Queue | `REDIS_URL` | [console.upstash.com](https://console.upstash.com) → Create Database → Copy `redis://` URL |
-| Backend | Railway project | [railway.app](https://railway.app) → Deploy from GitHub → Add env vars |
-| Frontend | Vercel project | [vercel.com](https://vercel.com) → Import repo → Set root directory → Add env vars |
-
-**Cost: $0** — all services offer generous free tiers.
+### Cloud Deployment - (Deployment Considerations)
+Refer **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** for the complete guide.
 
 ---
 
