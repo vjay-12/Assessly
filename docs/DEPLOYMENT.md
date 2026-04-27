@@ -1,6 +1,6 @@
 # Deployment Guide — Live URL Setup
 
-This guide walks you through deploying the Zetheta platform to production with **live URLs**.
+This guide walks you through deploying the Assessly platform to production with **live URLs**.
 
 ---
 
@@ -12,16 +12,16 @@ Neon is **serverless PostgreSQL** with a generous free tier (500 MB).
 
 1. Go to **[neon.tech](https://neon.tech)** and sign up (GitHub OAuth available)
 2. Click **"Create Project"**
-3. Name it `zetheta-platform`
+3. Name it `assessly-platform`
 4. Neon auto-generates a password — **copy and save it**
 5. In the Dashboard, go to **"Connection Details"**
 6. Copy the connection string, which looks like:
    ```
-   postgresql://user:password@ep-xxx.us-east-1.aws.neon.tech/zetheta?sslmode=require
+   postgresql://user:password@ep-xxx.us-east-1.aws.neon.tech/assessly?sslmode=require
    ```
 7. **Convert for SQLAlchemy async** — replace `postgresql://` with `postgresql+asyncpg://`:
    ```
-   postgresql+asyncpg://user:password@ep-xxx.us-east-1.aws.neon.tech/zetheta?sslmode=require
+   postgresql+asyncpg://user:password@ep-xxx.us-east-1.aws.neon.tech/assessly?sslmode=require
    ```
 
 ### What This Gives You
@@ -40,7 +40,7 @@ Upstash is **serverless Redis** with a free tier (10,000 commands/day + 256 MB).
 
 1. Go to **[console.upstash.com](https://console.upstash.com)** and sign up
 2. Click **"Create Database"**
-3. Name it `zetheta-redis`
+3. Name it `assessly-redis`
 4. Choose a **region close to your backend deployment** (e.g., `us-east-1` if deploying to Railway US)
 5. After creation, go to the **"Redis"** tab (NOT the REST API tab)
 6. Copy the **Redis URL**, which looks like:
@@ -78,7 +78,7 @@ Railway offers **$5 free credit/month** and deploys Docker containers with zero 
 ### Deploy Auth Service
 
 1. Go to **[railway.app](https://railway.app)** → New Project → Deploy from GitHub repo
-2. Select your Zetheta repo
+2. Select your Assessly repo
 3. Add a **New Service** → Select `services/auth-service/Dockerfile`
 4. In **Variables**, add:
    ```
@@ -193,7 +193,7 @@ NEXT_PUBLIC_ASSESSMENT_ENGINE_URL=https://assessment-engine.vercel.app
 
 ### Local Development (Docker Compose)
 ```bash
-DATABASE_URL=postgresql+asyncpg://user:pass@ep-xxx.neon.tech/zetheta?sslmode=require
+DATABASE_URL=postgresql+asyncpg://user:pass@ep-xxx.neon.tech/assessly?sslmode=require
 REDIS_URL=redis://valkey:6379          # local Valkey container
 JWT_SECRET=local-secret
 CROSS_APP_SECRET=local-cross-secret
@@ -205,7 +205,7 @@ NEXT_PUBLIC_ASSESSMENT_ENGINE_URL=http://localhost:4001
 ### Production (Railway + Vercel + Upstash + Neon)
 ```bash
 # Backends (Railway)
-DATABASE_URL=postgresql+asyncpg://user:pass@ep-xxx.neon.tech/zetheta?sslmode=require
+DATABASE_URL=postgresql+asyncpg://user:pass@ep-xxx.neon.tech/assessly?sslmode=require
 REDIS_URL=rediss://default:pass@host.upstash.io:6379
 JWT_SECRET=production-secret-32-chars-min
 CROSS_APP_SECRET=production-cross-secret-32-chars-min
@@ -238,7 +238,7 @@ NEXT_PUBLIC_ASSESSMENT_ENGINE_URL=https://assessment-engine.vercel.app
 
 3. **Test Real-Time Dashboard**:
    - Open `https://employer-dashboard.vercel.app`
-   - Login with `hr@zetheta.com` / `admin123`
+   - Login with `hr@assessly.com` / `admin123`
    - "LIVE" badge should appear
    - Funnel count should auto-update when submission completes
 

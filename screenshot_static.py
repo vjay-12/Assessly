@@ -5,7 +5,7 @@ from playwright.async_api import async_playwright
 os.makedirs('screenshots', exist_ok=True)
 
 CANDIDATE_LOGIN_HTML = """
-<!DOCTYPE html><html><head><meta charset="utf-8"><title>Zetheta — Candidate Portal</title>
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Assessly — Candidate Portal</title>
 <script src="https://cdn.tailwindcss.com"></script></head>
 <body class="flex min-h-screen">
 <div class="hidden w-1/2 flex-col justify-between bg-gradient-to-br from-slate-900 to-indigo-700 p-12 text-white lg:flex">
@@ -14,11 +14,11 @@ CANDIDATE_LOGIN_HTML = """
       <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
       </svg>
-    </div><span class="text-xl font-bold">Zetheta</span>
+    </div><span class="text-xl font-bold">Assessly</span>
   </div>
   <div>
     <h1 class="text-4xl font-bold leading-tight">Your journey to <span class="text-indigo-200">excellence</span> starts here.</h1>
-    <p class="mt-4 text-lg text-white/80">Welcome to the Zetheta Evaluation Portal. A high-performance environment designed to showcase your true potential.</p>
+    <p class="mt-4 text-lg text-white/80">Welcome to the Assessly Evaluation Portal. A high-performance environment designed to showcase your true potential.</p>
   </div>
   <div class="flex gap-4">
     <div class="rounded-xl bg-white/10 p-4 backdrop-blur-sm"><div class="text-2xl">🔒</div><div class="mt-2 font-semibold">Encrypted</div><div class="text-sm text-white/70">End-to-end secure session</div></div>
@@ -41,14 +41,14 @@ CANDIDATE_LOGIN_HTML = """
       </div>
       <button type="button" class="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-3 font-semibold text-white transition hover:bg-indigo-700">Start Assessment →</button>
     </form>
-    <p class="mt-8 text-center text-sm text-gray-500">Secured by <span class="font-semibold text-gray-700">Zetheta</span></p>
+    <p class="mt-8 text-center text-sm text-gray-500">Secured by <span class="font-semibold text-gray-700">Assessly</span></p>
   </div>
 </div>
 </body></html>
 """
 
 CANDIDATE_DASHBOARD_HTML = """
-<!DOCTYPE html><html><head><meta charset="utf-8"><title>Zetheta — Dashboard</title>
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Assessly — Dashboard</title>
 <script src="https://cdn.tailwindcss.com"></script></head>
 <body class="min-h-screen bg-slate-50">
 <nav class="border-b bg-white px-6 py-4">
@@ -58,7 +58,7 @@ CANDIDATE_DASHBOARD_HTML = """
         <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
         </svg>
-      </div><span class="font-bold text-slate-800">Zetheta</span>
+      </div><span class="font-bold text-slate-800">Assessly</span>
     </div>
     <div class="flex items-center gap-4">
       <span class="text-sm text-gray-500">alex.rivera@example.com</span>
@@ -94,7 +94,7 @@ CANDIDATE_DASHBOARD_HTML = """
 """
 
 ASSESSMENT_HTML = """
-<!DOCTYPE html><html><head><meta charset="utf-8"><title>Zetheta — Assessment</title>
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Assessly — Assessment</title>
 <script src="https://cdn.tailwindcss.com"></script></head>
 <body class="flex h-screen bg-slate-50">
 <div class="w-64 border-r bg-white p-6">
@@ -120,7 +120,7 @@ ASSESSMENT_HTML = """
 </div>
 <div class="flex flex-1 flex-col">
   <div class="flex items-center justify-between border-b bg-white px-8 py-4">
-    <div class="text-sm text-gray-500">Zetheta Assessment Engine <span class="mx-2">|</span> <span class="font-semibold text-gray-800">Full Stack Engineering</span></div>
+    <div class="text-sm text-gray-500">Assessly Assessment Engine <span class="mx-2">|</span> <span class="font-semibold text-gray-800">Full Stack Engineering</span></div>
     <div class="flex items-center gap-6">
       <div class="flex items-center gap-2 rounded-lg bg-slate-100 px-4 py-2 text-sm font-mono font-semibold">⏱ 28:45</div>
       <div class="text-sm text-gray-500">Question 1 of 10</div>

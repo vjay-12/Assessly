@@ -52,7 +52,7 @@ async def seed():
         # Create admin user
         admin = User(
             id=uuid.uuid4(),
-            email="hr@zetheta.com",
+            email="hr@assessly.com",
             full_name="HR Admin",
             password_hash=bcrypt.hashpw("admin123".encode(), bcrypt.gensalt()).decode(),
             role=UserRole.ADMIN,

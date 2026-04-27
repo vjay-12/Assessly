@@ -16,7 +16,7 @@ print("=" * 60)
 print("\n[1] Auth Service Config:")
 from config import settings as auth_settings
 fields = auth_settings.model_dump()
-print(f"  DATABASE_URL: {'SET' if fields.get('database_url') != 'postgresql+asyncpg://user:pass@localhost/zetheta' else 'DEFAULT'}")
+print(f"  DATABASE_URL: {'SET' if fields.get('database_url') != 'postgresql+asyncpg://user:pass@localhost/assessly' else 'DEFAULT'}")
 print(f"  REDIS_URL: {'SET' if fields.get('redis_url') != 'redis://valkey:6379' else 'DEFAULT'}")
 print(f"  JWT_SECRET: {'SET' if len(fields.get('jwt_secret', '')) > 20 else 'TOO SHORT'}")
 print(f"  CROSS_APP_SECRET: {'SET' if len(fields.get('cross_app_secret', '')) > 20 else 'TOO SHORT'}")
@@ -27,7 +27,7 @@ spec = importlib.util.spec_from_file_location("gateway_config", "services/api-ga
 gateway_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gateway_module)
 gfields = gateway_module.settings.model_dump()
-print(f"  DATABASE_URL: {'SET' if gfields.get('database_url') != 'postgresql+asyncpg://user:pass@localhost/zetheta' else 'DEFAULT'}")
+print(f"  DATABASE_URL: {'SET' if gfields.get('database_url') != 'postgresql+asyncpg://user:pass@localhost/assessly' else 'DEFAULT'}")
 print(f"  REDIS_URL: {'SET' if gfields.get('redis_url') != 'redis://valkey:6379' else 'DEFAULT'}")
 print(f"  JWT_SECRET: {'SET' if len(gfields.get('jwt_secret', '')) > 20 else 'TOO SHORT'}")
 

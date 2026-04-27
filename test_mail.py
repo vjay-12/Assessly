@@ -17,7 +17,7 @@ from shared.email import (
 RECIPIENT = "vijaybaskaran.vlr@gmail.com"
 
 print("=" * 50)
-print("  Zetheta Email Test")
+print("  Assessly Email Test")
 print("=" * 50)
 print(f"SMTP Enabled: {EMAIL_ENABLED}")
 print(f"SMTP Host:    {SMTP_HOST}")

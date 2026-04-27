@@ -143,7 +143,7 @@ function AssessmentContent() {
       <div className="flex flex-1 flex-col">
         <div className="flex items-center justify-between border-b bg-white px-8 py-4">
           <div className="text-sm text-gray-500">
-            Zetheta Assessment Engine <span className="mx-2">|</span> <span className="font-semibold text-gray-800">Distributed Systems</span>
+            Assessly Assessment Engine <span className="mx-2">|</span> <span className="font-semibold text-gray-800">Distributed Systems</span>
           </div>
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2 rounded-lg bg-slate-100 px-4 py-2 text-sm font-mono font-semibold">

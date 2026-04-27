@@ -48,7 +48,7 @@ export default function RegisterPage() {
       <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-sm">
         <div className="text-center">
           <h2 className="text-2xl font-bold">Create Account</h2>
-          <p className="mt-1 text-gray-500">Join the Zetheta Evaluation Portal</p>
+          <p className="mt-1 text-gray-500">Join the Assessly Evaluation Portal</p>
         </div>
 
         {error && (

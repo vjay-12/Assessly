@@ -23,7 +23,7 @@ from shared.models import User, UserRole, TestSession, ApplicationStatus, AuditL
 from shared.email import send_welcome_email, send_password_reset_email
 from config import settings
 
-app = FastAPI(title="Zetheta Auth Service", version="1.0.0")
+app = FastAPI(title="Assessly Auth Service", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

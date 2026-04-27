@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Start all Zetheta platform services in a single terminal with color-coded output.
+Start all Assessly platform services in a single terminal with color-coded output.
 Usage: python start-all.py
 """
 
@@ -140,7 +140,7 @@ if __name__ == "__main__":
         signal.signal(signal.SIGTERM, shutdown)
 
     print("=" * 60)
-    print("  Zetheta Platform - Starting all services")
+    print("  Assessly Platform - Starting all services")
     print("=" * 60)
     for svc in SERVICES:
         print(f"  * {svc['name']:12} -> http://localhost:{svc['port']}")

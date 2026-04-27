@@ -48,14 +48,14 @@ export default function LoginPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
             </svg>
           </div>
-          <span className="text-xl font-bold">Zetheta</span>
+          <span className="text-xl font-bold">Assessly</span>
         </div>
         <div>
           <h1 className="text-4xl font-bold leading-tight">
             Your journey to <span className="text-indigo-200">excellence</span> starts here.
           </h1>
           <p className="mt-4 text-lg text-white/80">
-            Welcome to the Zetheta Evaluation Portal. A high-performance environment designed to showcase your true potential.
+            Welcome to the Assessly Evaluation Portal. A high-performance environment designed to showcase your true potential.
           </p>
         </div>
         <div className="flex gap-4">
@@ -134,7 +134,7 @@ export default function LoginPage() {
           </div>
 
           <p className="mt-6 text-center text-sm text-gray-500">
-            Secured by <span className="font-semibold text-gray-700">Zetheta</span>
+            Secured by <span className="font-semibold text-gray-700">Assessly</span>
           </p>
         </div>
       </div>

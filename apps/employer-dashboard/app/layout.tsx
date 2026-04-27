@@ -1,7 +1,7 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'Zetheta — Admin Dashboard',
+  title: 'Assessly — Admin Dashboard',
   description: 'Real-time talent insights and audit trails',
 };
 

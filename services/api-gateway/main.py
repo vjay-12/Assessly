@@ -27,7 +27,7 @@ from shared.models import (
 from shared.email import send_assignment_invite, send_welcome_email
 from config import settings
 
-app = FastAPI(title="Zetheta API Gateway", version="1.0.0")
+app = FastAPI(title="Assessly API Gateway", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Start all Zetheta platform services in separate terminal windows.
+    Start all Assessly platform services in separate terminal windows.
 .DESCRIPTION
     Opens 5 PowerShell windows — one for each service — so you can debug
     each independently. Press Ctrl+C in any window to stop that service.
@@ -45,7 +45,7 @@ $services = @(
 )
 
 Write-Host "============================================" -ForegroundColor White
-Write-Host "  Zetheta Platform — Starting all services  " -ForegroundColor White
+Write-Host "  Assessly Platform — Starting all services  " -ForegroundColor White
 Write-Host "============================================" -ForegroundColor White
 
 foreach ($svc in $services) {

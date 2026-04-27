@@ -1,5 +1,5 @@
 """
-Comprehensive health check for all Zetheta platform components.
+Comprehensive health check for all Assessly platform components.
 """
 import asyncio
 import os

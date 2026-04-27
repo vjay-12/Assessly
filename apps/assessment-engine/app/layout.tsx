@@ -1,7 +1,7 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'Zetheta — Assessment Engine',
+  title: 'Assessly — Assessment Engine',
   description: 'Secure MCQ assessment environment',
 };
 

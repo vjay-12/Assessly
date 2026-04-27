@@ -1,7 +1,7 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'Zetheta — Candidate Portal',
+  title: 'Assessly — Candidate Portal',
   description: 'Secure distributed assessment platform',
 };
 

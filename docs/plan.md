@@ -1,4 +1,4 @@
-# Zetheta Distributed Candidate Evaluation Platform — Implementation Plan
+# Assessly Distributed Candidate Evaluation Platform — Implementation Plan
 
 > **Version**: 2.0 (Updated per candidate tech preferences)  
 > **Date**: 2026-04-23  
@@ -21,7 +21,7 @@ The two highest-risk areas identified are:
 ### 2.1 Monorepo Structure (Turborepo + pnpm + Python)
 
 ```
-zetheta-evaluation-platform/
+assessly-evaluation-platform/
 ├── apps/
 │   ├── candidate-portal/          # Next.js 15 — Login + Assessment entry
 │   ├── assessment-engine/         # Next.js 15 — MCQ interface (separate deployable)
@@ -1024,7 +1024,7 @@ volumes:
 
 ```bash
 # Database
-DATABASE_URL="postgresql+asyncpg://user:password@ep-xxx.us-east-1.aws.neon.tech/zetheta?sslmode=require"
+DATABASE_URL="postgresql+asyncpg://user:password@ep-xxx.us-east-1.aws.neon.tech/assessly?sslmode=require"
 
 # Redis (Upstash)
 REDIS_URL="rediss://default:xxx@upstash-redis-url:6379"

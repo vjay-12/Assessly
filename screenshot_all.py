@@ -8,7 +8,7 @@ os.makedirs('screenshots', exist_ok=True)
 EMPLOYER_LOGIN_HTML = """
 <!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><title>Zetheta Admin</title>
+<head><meta charset="utf-8"><title>Assessly Admin</title>
 <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-50">
@@ -20,13 +20,13 @@ EMPLOYER_LOGIN_HTML = """
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
         </svg>
       </div>
-      <h2 class="mt-4 text-2xl font-bold">Zetheta Admin</h2>
+      <h2 class="mt-4 text-2xl font-bold">Assessly Admin</h2>
       <p class="mt-1 text-gray-500">Employer Dashboard Login</p>
     </div>
     <form class="mt-6 space-y-4">
       <div>
         <label class="text-xs font-semibold uppercase tracking-wide text-gray-500">Email</label>
-        <input type="email" placeholder="hr@zetheta.com" class="mt-1 w-full rounded-lg border border-gray-200 px-4 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" />
+        <input type="email" placeholder="hr@assessly.com" class="mt-1 w-full rounded-lg border border-gray-200 px-4 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" />
       </div>
       <div>
         <label class="text-xs font-semibold uppercase tracking-wide text-gray-500">Password</label>
@@ -44,7 +44,7 @@ EMPLOYER_LOGIN_HTML = """
 EMPLOYER_DASHBOARD_HTML = """
 <!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><title>Zetheta Admin</title>
+<head><meta charset="utf-8"><title>Assessly Admin</title>
 <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-50">
@@ -56,7 +56,7 @@ EMPLOYER_DASHBOARD_HTML = """
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
         </svg>
       </div>
-      <span class="font-bold text-slate-800">Zetheta Admin</span>
+      <span class="font-bold text-slate-800">Assessly Admin</span>
     </div>
     <nav class="flex-1 px-4 py-4">
       <a href="#" class="flex items-center gap-3 rounded-lg bg-indigo-50 px-4 py-3 text-sm font-medium text-indigo-700"><span>📊</span> Overview</a>

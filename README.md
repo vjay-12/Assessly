@@ -1,4 +1,4 @@
-# Zetheta Distributed Candidate Evaluation Platform
+# Assessly Distributed Candidate Evaluation Platform
 
 A production-grade distributed platform for real-time candidate assessments, built as a monorepo with FastAPI (Python), Next.js, Neon PostgreSQL, and Valkey.
 
@@ -90,7 +90,7 @@ A production-grade distributed platform for real-time candidate assessments, bui
 
 ```bash
 git clone <repo-url>
-cd zetheta-platform
+cd assessly-platform
 cp .env.example .env
 # Edit .env with your Neon DATABASE_URL
 ```
@@ -125,7 +125,7 @@ python seed.py
 |-----|-----|-------------|
 | Candidate Portal | http://localhost:4000 | alex.rivera@example.com / candidate123 |
 | Assessment Engine | http://localhost:4001 | (accessed via cross-app token) |
-| Employer Dashboard | http://localhost:4002 | hr@zetheta.com / admin123 |
+| Employer Dashboard | http://localhost:4002 | hr@assessly.com / admin123 |
 | API Docs (Gateway) | http://localhost:3000/docs | — |
 | API Docs (Auth) | http://localhost:3001/docs | — |
 
@@ -239,4 +239,4 @@ Quick overview of what you need:
 
 ## License
 
-Built for Zetheta Internship Selection Assignment — 2025.
+Built for Assessly Internship Selection Assignment — 2025.

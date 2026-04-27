@@ -14,7 +14,7 @@ SMTP_HOST = os.getenv("SMTP_HOST", "")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASS = os.getenv("SMTP_PASS", "")
-SMTP_FROM = os.getenv("SMTP_FROM", "noreply@zetheta.com")
+SMTP_FROM = os.getenv("SMTP_FROM", "noreply@assessly.com")
 
 EMAIL_ENABLED = all([SMTP_HOST, SMTP_USER, SMTP_PASS])
 
@@ -47,31 +47,31 @@ def send_email(to: str, subject: str, html_body: str, text_body: Optional[str] =
 
 
 def send_welcome_email(to: str, name: str, password: str) -> bool:
-    subject = "Welcome to Zetheta"
+    subject = "Welcome to Assessly"
     html = f"""
     <h2>Welcome, {name}!</h2>
-    <p>Your Zetheta account has been created successfully.</p>
+    <p>Your Assessly account has been created successfully.</p>
     <p><strong>Login credentials:</strong></p>
     <ul>
       <li><strong>Email:</strong> {to}</li>
       <li><strong>Password:</strong> {password}</li>
     </ul>
     <p>You can now log in and access your assessment dashboard.</p>
-    <p>— The Zetheta Team</p>
+    <p>— The Assessly Team</p>
     """
     return send_email(to, subject, html)
 
 
 def send_password_reset_email(to: str, reset_token: str) -> bool:
-    subject = "Reset your Zetheta password"
+    subject = "Reset your Assessly password"
     reset_url = f"http://localhost:4000/reset-password?token={reset_token}"
     html = f"""
     <h2>Password Reset Request</h2>
-    <p>You requested a password reset for your Zetheta account.</p>
+    <p>You requested a password reset for your Assessly account.</p>
     <p><a href="{reset_url}" style="padding:10px 20px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:6px;">Reset Password</a></p>
     <p>Or copy this link: {reset_url}</p>
     <p>This link expires in 1 hour.</p>
-    <p>— The Zetheta Team</p>
+    <p>— The Assessly Team</p>
     """
     return send_email(to, subject, html)
 
@@ -83,7 +83,7 @@ def send_assignment_invite(to: str, name: str, assessment_title: str) -> bool:
     <p>You have been assigned a new assessment: <strong>{assessment_title}</strong>.</p>
     <p>Please log in to your candidate portal to start the assessment.</p>
     <p><a href="http://localhost:4000" style="padding:10px 20px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:6px;">Go to Portal</a></p>
-    <p>— The Zetheta Team</p>
+    <p>— The Assessly Team</p>
     """
     return send_email(to, subject, html)
 
@@ -95,6 +95,6 @@ def send_result_notification(to: str, name: str, assessment_title: str, percenta
     <p>Your assessment <strong>{assessment_title}</strong> has been evaluated.</p>
     <p>Your score: <strong>{percentage:.1f}%</strong></p>
     <p>Log in to view detailed results.</p>
-    <p>— The Zetheta Team</p>
+    <p>— The Assessly Team</p>
     """
     return send_email(to, subject, html)
