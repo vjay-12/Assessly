@@ -19,6 +19,7 @@ COLORS = {
     "CANDIDATE": "\033[93m", # Yellow
     "ASSESSMENT": "\033[95m",# Magenta
     "EMPLOYER": "\033[96m",  # Cyan
+    "WORKER": "\033[90m",    # Gray
     "RESET": "\033[0m",
 }
 
@@ -32,7 +33,7 @@ def kill_orphans():
     if platform.system() == "Windows":
         for port in ports:
             try:
-                result = subprocess.run(
+                subprocess.run(
                     ["powershell", "-Command",
                      f"Get-NetTCPConnection -LocalPort {port} -ErrorAction SilentlyContinue | ForEach-Object {{ Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }}"],
                     capture_output=True, text=True, timeout=10
@@ -85,6 +86,12 @@ SERVICES = [
         "cwd": os.path.join(os.path.dirname(os.path.abspath(__file__)), "apps", "employer-dashboard"),
         "port": 4002,
     },
+    {
+        "name": "WORKER",
+        "cmd": [PYTHON_EXE, "run_worker.py"],
+        "cwd": os.path.dirname(os.path.abspath(__file__)),
+        "port": None,
+    },
 ]
 
 processes = []
@@ -106,11 +113,14 @@ def start_service(service):
     """Start a single service process."""
     name = service["name"]
     color = COLORS.get(name, "")
-    print(f"{color}[{name}]{COLORS['RESET']} Starting on port {service['port']}...", flush=True)
+    if service["port"]:
+        print(f"{color}[{name}]{COLORS['RESET']} Starting on port {service['port']}...", flush=True)
+    else:
+        print(f"{color}[{name}]{COLORS['RESET']} Starting...", flush=True)
 
     env = os.environ.copy()
     # Ensure PYTHONPATH is set for Python services
-    if name in ("AUTH", "GATEWAY"):
+    if name in ("AUTH", "GATEWAY", "WORKER"):
         env["PYTHONPATH"] = "services"
 
     kwargs = {
@@ -177,7 +187,10 @@ if __name__ == "__main__":
     print("  Assessly Platform - Starting all services")
     print("=" * 60)
     for svc in SERVICES:
-        print(f"  * {svc['name']:12} -> http://localhost:{svc['port']}")
+        if svc["port"]:
+            print(f"  * {svc['name']:12} -> http://localhost:{svc['port']}")
+        else:
+            print(f"  * {svc['name']:12} -> (background worker)")
     print("=" * 60)
     print("Press Ctrl+C to stop all services\n")
 
@@ -195,7 +208,7 @@ if __name__ == "__main__":
                 if proc.poll() is not None and proc.poll() != 0 and id(proc) not in exited:
                     exited.add(id(proc))
                     print(
-                        f"\033[91m[MANAGER]\033[0m Service exited with code {proc.poll()}. Press Ctrl+C to stop.",
+                        "\033[91m[MANAGER]\033[0m Service exited with code {}. Press Ctrl+C to stop.".format(proc.poll()),
                         flush=True,
                     )
     except KeyboardInterrupt:
