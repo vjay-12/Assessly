@@ -2,7 +2,7 @@
 
 A production-grade distributed platform for real-time candidate assessments, built as a monorepo with FastAPI (Python), Next.js, Neon PostgreSQL, and Redis (Upstash/Valkey).
 
-![Platform Flows](2flows.png)
+![Platform Flows](images/2flows.png)
 
 ## Architecture Overview
 
@@ -54,7 +54,7 @@ A production-grade distributed platform for real-time candidate assessments, bui
 
 ### Candidate Journey
 
-![Candidate Home Page](<Home page - Candidates.png>)
+![Candidate Home Page](<images/Home page - Candidates.png>)
 
 1. **Register/Login** → Candidate Portal validates credentials, receives JWT access + refresh tokens
 2. **View Dashboard** → Sees assigned assessments with real `total_questions` and `duration_minutes`
@@ -70,7 +70,7 @@ A production-grade distributed platform for real-time candidate assessments, bui
 
 ### Admin / Employer Journey
 
-![Admin Home Page](<Home page -Admin.png>)
+![Admin Home Page](<images/Home page -Admin.png>)
 
 1. **Login** → Employer Dashboard validates credentials, receives admin JWT
 2. **Create Users** → Bulk or single candidate creation with auto-generated passwords
@@ -397,7 +397,7 @@ Assessment Engine
 docker compose up
 ```
 
-### Cloud Deployment
+### Cloud Deployment - (Optional)
 See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** for the complete guide using:
 - **Neon PostgreSQL** (cloud database)
 - **Upstash Redis** (cloud queue/cache)
