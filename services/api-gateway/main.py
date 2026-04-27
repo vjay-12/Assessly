@@ -182,6 +182,8 @@ class MySessionOut(BaseModel):
     application_status: str
     score_percentage: Optional[float]
     assigned_at: Optional[datetime]
+    total_questions: int
+    duration_minutes: int
 
 
 # ─── Auth Helpers ───
@@ -789,6 +791,8 @@ async def get_my_sessions(
             application_status=session.application_status.value,
             score_percentage=session.score_percentage,
             assigned_at=session.created_at,
+            total_questions=assessment.total_questions,
+            duration_minutes=assessment.duration_minutes,
         )
         for session, assessment in rows
     ]

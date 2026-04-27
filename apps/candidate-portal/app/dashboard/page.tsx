@@ -10,6 +10,8 @@ interface TestSession {
   application_status: string;
   score_percentage: number | null;
   due_at: string | null;
+  total_questions: number;
+  duration_minutes: number;
 }
 
 export default function CandidateDashboard() {
@@ -170,8 +172,8 @@ export default function CandidateDashboard() {
               </div>
               <h3 className="mt-3 font-semibold">{session.assessment_title}</h3>
               <div className="mt-2 space-y-1 text-sm text-gray-500">
-                <p>📝 10 Questions</p>
-                <p>⏱ 60 mins</p>
+                <p>📝 {session.total_questions || 0} Question{session.total_questions !== 1 ? 's' : ''}</p>
+                <p>⏱ {session.duration_minutes || 0} min{session.duration_minutes !== 1 ? 's' : ''}</p>
                 {session.score_percentage !== null && (
                   <p>📊 Score: {session.score_percentage != null ? `${session.score_percentage.toFixed(1)}%` : 'Pending'}</p>
                 )}
