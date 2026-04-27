@@ -11,7 +11,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.database import DB, init_engine
-from shared.models import Base, TestSession, ApplicationStatus, SessionResponse, Question, PendingEvaluation, User, Assessment, AuditLog, AuditEventType, AuditEventCategory, SeverityLevel
+from shared.models import Base, TestSession, ApplicationStatus, SessionResponse, Question, PendingEvaluation, User, Assessment
 from shared.email import send_result_notification
 
 # Configure structlog
@@ -105,18 +105,7 @@ async def process_evaluation(application_id: str, db: AsyncSession, redis_client
     )
     await db.commit()
 
-    # 5. Log audit event
-    db.add(AuditLog(
-        user_id=test_session.candidate_id if test_session else None,
-        event_type=AuditEventType.EVAL_COMPLETED,
-        category=AuditEventCategory.EVALUATION,
-        severity=SeverityLevel.INFORMATIONAL,
-        assessment_id=test_session.assessment_id if test_session else None,
-        details=f"Evaluation completed for session {application_id}. Score: {percentage:.1f}% ({correct}/{total_questions})",
-    ))
-    await db.commit()
-
-    # 6. Publish real-time event
+    # 7. Publish real-time event
     event = json.dumps({
         "type": "EVALUATION_COMPLETED",
         "payload": {
@@ -128,7 +117,7 @@ async def process_evaluation(application_id: str, db: AsyncSession, redis_client
     })
     await redis_client.publish("scores", event)
 
-    # 6. Remove from pending_evaluations if exists
+    # 8. Remove from pending_evaluations if exists
     pending_result = await db.execute(
         select(PendingEvaluation).where(PendingEvaluation.session_id == app_uuid)
     )
@@ -137,7 +126,7 @@ async def process_evaluation(application_id: str, db: AsyncSession, redis_client
         await db.delete(pending)
         await db.commit()
 
-    # 7. Send result notification email
+    # 9. Send result notification email
     try:
         session_result = await db.execute(select(TestSession).where(TestSession.id == app_uuid))
         session = session_result.scalar_one_or_none()
@@ -193,16 +182,6 @@ async def main():
     async with DB.engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    # Log worker started system event
-    async with DB.AsyncSessionLocal() as db:
-        db.add(AuditLog(
-            event_type=AuditEventType.WORKER_STARTED,
-            category=AuditEventCategory.SYSTEM,
-            severity=SeverityLevel.INFORMATIONAL,
-            details=f"Evaluation worker {WORKER_ID} started",
-        ))
-        await db.commit()
-
     recovery_counter = 0
 
     while True:
@@ -227,14 +206,6 @@ async def main():
 
             async with DB.AsyncSessionLocal() as db:
                 try:
-                    # Log evaluation started
-                    db.add(AuditLog(
-                        event_type=AuditEventType.EVAL_STARTED,
-                        category=AuditEventCategory.EVALUATION,
-                        severity=SeverityLevel.INFORMATIONAL,
-                        details=f"Evaluation started for session {application_id}",
-                    ))
-                    await db.commit()
                     await process_evaluation(application_id, db, redis_client)
                 except Exception as e:
                     logger.error(
@@ -242,36 +213,14 @@ async def main():
                         application_id=application_id,
                         error=str(e)
                     )
-                    # Log evaluation failed
-                    db.add(AuditLog(
-                        event_type=AuditEventType.EVAL_FAILED,
-                        category=AuditEventCategory.EVALUATION,
-                        severity=SeverityLevel.HIGH,
-                        details=f"Evaluation failed for session {application_id}: {str(e)}",
-                    ))
-                    await db.commit()
                     # Re-queue for retry (max 3 attempts tracked via simple counter)
                     attempts = job.get("attempts", 0) + 1
                     if attempts < 3:
                         job["attempts"] = attempts
                         await redis_client.lpush("evaluation:queue", json.dumps(job))
                         logger.info("job_requeued", application_id=application_id, attempt=attempts)
-                        db.add(AuditLog(
-                            event_type=AuditEventType.EVAL_RETRY,
-                            category=AuditEventCategory.EVALUATION,
-                            severity=SeverityLevel.MEDIUM,
-                            details=f"Evaluation requeued for session {application_id}, attempt {attempts}",
-                        ))
-                        await db.commit()
                     else:
                         logger.error("job_dead_letter", application_id=application_id)
-                        db.add(AuditLog(
-                            event_type=AuditEventType.EVAL_DEAD,
-                            category=AuditEventCategory.EVALUATION,
-                            severity=SeverityLevel.CRITICAL,
-                            details=f"Evaluation permanently failed for session {application_id} after 3 attempts",
-                        ))
-                        await db.commit()
 
         except Exception as e:
             logger.error("worker_loop_error", error=str(e))
