@@ -4,6 +4,7 @@ import json
 import hmac
 import hashlib
 import secrets
+import asyncio
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -17,8 +18,8 @@ from jose import jwt, JWTError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.database import get_db
-from shared.models import User, UserRole, TestSession, ApplicationStatus
+from shared.database import get_db, init_engine
+from shared.models import User, UserRole, TestSession, ApplicationStatus, AuditLog, AuditEventType, AuditEventCategory, SeverityLevel
 from shared.email import send_welcome_email, send_password_reset_email
 from config import settings
 
@@ -40,6 +41,7 @@ redis_client: Optional[redis.Redis] = None
 async def startup():
     global redis_client
     redis_client = redis.from_url(settings.redis_url, decode_responses=True)
+    await init_engine()
 
 
 @app.on_event("shutdown")
@@ -156,6 +158,12 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
+    # Check token blocklist (logout)
+    if redis_client:
+        blocked = await redis_client.get(f"token:blocklist:{credentials.credentials}")
+        if blocked:
+            raise HTTPException(status_code=401, detail="Token revoked")
+
     result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
     user = result.scalar_one_or_none()
     if not user:
@@ -170,15 +178,77 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == req.email))
     user = result.scalar_one_or_none()
     if not user:
+        db.add(AuditLog(
+            event_type=AuditEventType.LOGIN_FAILED,
+            category=AuditEventCategory.AUTH,
+            severity=SeverityLevel.MEDIUM,
+            details=f"Failed login attempt for email: {req.email}",
+        ))
+        await db.commit()
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     if not bcrypt.checkpw(req.password.encode(), user.password_hash.encode()):
+        db.add(AuditLog(
+            user_id=user.id,
+            event_type=AuditEventType.LOGIN_FAILED,
+            category=AuditEventCategory.AUTH,
+            severity=SeverityLevel.MEDIUM,
+            details=f"Failed login attempt for user: {user.email}",
+        ))
+        await db.commit()
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     access_token = create_access_token(str(user.id), user.role.value)
     refresh_token = create_refresh_token(str(user.id))
 
+    db.add(AuditLog(
+        user_id=user.id,
+        event_type=AuditEventType.LOGIN,
+        category=AuditEventCategory.AUTH,
+        severity=SeverityLevel.INFORMATIONAL,
+        details=f"User logged in: {user.email} ({user.role.value})",
+    ))
+    await db.commit()
+
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)
+
+
+class LogoutResponse(BaseModel):
+    message: str
+
+
+@app.post("/auth/logout", response_model=LogoutResponse)
+async def logout(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db)
+):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Missing authorization header")
+    try:
+        payload = jwt.decode(credentials.credentials, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        user_id = payload.get("sub")
+        exp = payload.get("exp")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    # Add token to blocklist with TTL = remaining token lifetime
+    if redis_client and exp:
+        ttl = int(exp - datetime.utcnow().timestamp())
+        if ttl > 0:
+            await redis_client.setex(f"token:blocklist:{credentials.credentials}", ttl, "1")
+
+    # Log logout event
+    if user_id:
+        db.add(AuditLog(
+            user_id=uuid.UUID(user_id),
+            event_type=AuditEventType.LOGOUT,
+            category=AuditEventCategory.AUTH,
+            severity=SeverityLevel.INFORMATIONAL,
+            details=f"User logged out: {user_id}",
+        ))
+        await db.commit()
+
+    return LogoutResponse(message="Logged out successfully")
 
 
 @app.post("/auth/refresh", response_model=TokenResponse)
@@ -288,6 +358,17 @@ async def redeem_cross_app_token(req: RedeemTokenRequest, db: AsyncSession = Dep
         session.started_at = datetime.utcnow()
         await db.commit()
 
+        # Log assessment started
+        db.add(AuditLog(
+            user_id=uuid.UUID(payload["candidate_id"]),
+            event_type=AuditEventType.ASSESSMENT_STARTED,
+            category=AuditEventCategory.ASSESSMENT_CANDIDATE,
+            severity=SeverityLevel.INFORMATIONAL,
+            assessment_id=session.assessment_id,
+            details=f"Assessment started. Session: {payload['application_id']}",
+        ))
+        await db.commit()
+
     return RedeemTokenResponse(
         session_token=session_token,
         candidate_id=payload["candidate_id"],
@@ -321,7 +402,7 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     role = UserRole.ADMIN if role_str == "admin" else UserRole.CANDIDATE
 
     # Hash password
-    password_hash = bcrypt.hashpw(req.password.encode(), bcrypt.gensalt()).decode()
+    password_hash = (await asyncio.to_thread(bcrypt.hashpw, req.password.encode(), bcrypt.gensalt())).decode()
 
     user = User(
         id=uuid.uuid4(),
@@ -338,7 +419,6 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     refresh_token = create_refresh_token(str(user.id))
 
     # Send welcome email asynchronously (fire-and-forget via asyncio)
-    import asyncio
     asyncio.create_task(asyncio.to_thread(send_welcome_email, user.email, user.full_name, req.password))
 
     return RegisterResponse(
@@ -361,7 +441,6 @@ async def forgot_password(req: ForgotPasswordRequest, db: AsyncSession = Depends
     await redis_client.setex(f"reset:{reset_token}", 3600, str(user.id))
 
     # Send password reset email asynchronously
-    import asyncio
     asyncio.create_task(asyncio.to_thread(send_password_reset_email, req.email, reset_token))
 
     return ForgotPasswordResponse(message="If the email exists, a reset link has been sent")
@@ -378,7 +457,7 @@ async def reset_password(req: ResetPasswordRequest, db: AsyncSession = Depends(g
     if not user:
         raise HTTPException(status_code=400, detail="Invalid or expired reset token")
 
-    user.password_hash = bcrypt.hashpw(req.new_password.encode(), bcrypt.gensalt()).decode()
+    user.password_hash = (await asyncio.to_thread(bcrypt.hashpw, req.new_password.encode(), bcrypt.gensalt())).decode()
     await db.commit()
     await redis_client.delete(f"reset:{req.token}")
 

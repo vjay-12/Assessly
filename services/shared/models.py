@@ -41,19 +41,57 @@ class SeverityLevel(str, enum.Enum):
     HIGH = "High"
     CRITICAL = "Critical"
 
+class AuditEventCategory(str, enum.Enum):
+    AUTH = "Auth"
+    OTP = "OTP Tokens"
+    ASSESSMENT_CANDIDATE = "Assessment (Candidate)"
+    EVALUATION = "Evaluation Pipeline"
+    ADMIN = "Admin Actions"
+    SYSTEM = "System"
+
+
 class AuditEventType(str, enum.Enum):
+    # Auth
     LOGIN = "LOGIN"
+    LOGIN_FAILED = "LOGIN_FAILED"
     LOGOUT = "LOGOUT"
-    ASSESSMENT_STARTED = "ASSESSMENT_STARTED"
-    ASSESSMENT_SUBMITTED = "ASSESSMENT_SUBMITTED"
-    ANSWER_SAVED = "ANSWER_SAVED"
     SESSION_EXPIRED = "SESSION_EXPIRED"
-    TOKEN_ISSUED = "TOKEN_ISSUED"
-    TOKEN_USED = "TOKEN_USED"
-    TOKEN_INVALIDATED = "TOKEN_INVALIDATED"
-    PERMISSION_CHANGE = "PERMISSION_CHANGE"
-    RESULT_OVERRIDE = "RESULT_OVERRIDE"
+    ACCOUNT_LOCKED = "ACCOUNT_LOCKED"
+    # OTP
+    OTP_ISSUED = "OTP_ISSUED"
+    OTP_USED = "OTP_USED"
+    OTP_EXPIRED = "OTP_EXPIRED"
+    OTP_REJECTED = "OTP_REJECTED"
+    # Assessment (Candidate)
+    ASSESSMENT_ASSIGNED = "ASSESSMENT_ASSIGNED"
+    ASSESSMENT_STARTED = "ASSESSMENT_STARTED"
+    ANSWER_SAVED = "ANSWER_SAVED"
+    QUESTION_FLAGGED = "QUESTION_FLAGGED"
+    ASSESSMENT_SUBMITTED = "ASSESSMENT_SUBMITTED"
+    ASSESSMENT_TIMED_OUT = "ASSESSMENT_TIMED_OUT"
+    ASSESSMENT_ABANDONED = "ASSESSMENT_ABANDONED"
+    # Evaluation Pipeline
+    EVAL_QUEUED = "EVAL_QUEUED"
+    EVAL_STARTED = "EVAL_STARTED"
+    EVAL_COMPLETED = "EVAL_COMPLETED"
+    EVAL_FAILED = "EVAL_FAILED"
+    EVAL_RETRY = "EVAL_RETRY"
+    EVAL_DEAD = "EVAL_DEAD"
+    # Admin Actions
+    ASSESSMENT_CREATED = "ASSESSMENT_CREATED"
+    ASSESSMENT_EDITED = "ASSESSMENT_EDITED"
+    ASSESSMENT_PUBLISHED = "ASSESSMENT_PUBLISHED"
+    ASSESSMENT_DELETED = "ASSESSMENT_DELETED"
+    CANDIDATE_ASSIGNED = "CANDIDATE_ASSIGNED"
+    SCORE_OVERRIDDEN = "SCORE_OVERRIDDEN"
+    ROLE_CHANGED = "ROLE_CHANGED"
+    USER_CREATED = "USER_CREATED"
+    USER_DELETED = "USER_DELETED"
+    # System
     PAGE_VISITED = "PAGE_VISITED"
+    REDIS_DOWN = "REDIS_DOWN"
+    WORKER_STARTED = "WORKER_STARTED"
+    WORKER_STOPPED = "WORKER_STOPPED"
 
 
 # ── Users ──────────────────────────────────────────────
@@ -287,19 +325,24 @@ class AuditLog(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     event_type = Column(Enum(AuditEventType, native_enum=False), nullable=False)
+    category = Column(Enum(AuditEventCategory, native_enum=False), nullable=False)
     severity = Column(Enum(SeverityLevel, native_enum=False), default=SeverityLevel.INFORMATIONAL, nullable=False)
     details = Column(Text, nullable=True)
+    assessment_id = Column(UUID(as_uuid=True), ForeignKey("assessments.id"), nullable=True)
     ip_address = Column(String(45), nullable=True)
     user_agent = Column(Text, nullable=True)
     session_id = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
 
     user = relationship("User", back_populates="audit_logs")
+    assessment = relationship("Assessment")
 
     __table_args__ = (
         Index("ix_audit_user", "user_id"),
         Index("ix_audit_event_type", "event_type"),
+        Index("ix_audit_category", "category"),
         Index("ix_audit_severity", "severity"),
+        Index("ix_audit_assessment", "assessment_id"),
         Index("ix_audit_created", "created_at"),
     )
 

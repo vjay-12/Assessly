@@ -5,6 +5,7 @@ import asyncio
 from datetime import datetime
 from typing import Optional, List, AsyncGenerator
 
+import bcrypt
 import redis.asyncio as redis
 from fastapi import FastAPI, Depends, HTTPException, status, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,13 +17,14 @@ from sqlalchemy import select, func, update, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from prometheus_fastapi_instrumentator import Instrumentator
 
-from shared.database import get_db, AsyncSessionLocal
+from shared.database import get_db, init_engine
 from shared.models import (
     User, UserRole, TestSession, ApplicationStatus,
     Question, SessionResponse, PendingEvaluation,
-    Assessment, AssessmentAssignment, EnrollmentStatus
+    Assessment, AssessmentAssignment, EnrollmentStatus,
+    DifficultyLevel, AuditLog, AuditEventType, AuditEventCategory, SeverityLevel
 )
-from shared.email import send_assignment_invite
+from shared.email import send_assignment_invite, send_welcome_email
 from config import settings
 
 app = FastAPI(title="Zetheta API Gateway", version="1.0.0")
@@ -44,6 +46,7 @@ redis_client: Optional[redis.Redis] = None
 async def startup():
     global redis_client
     redis_client = redis.from_url(settings.redis_url, decode_responses=True)
+    await init_engine()
 
 
 @app.on_event("shutdown")
@@ -90,9 +93,16 @@ class ScoreOut(BaseModel):
     id: str
     application_id: str
     candidate_name: str
+    candidate_email: str
+    assessment_title: str
     percentage: float
     correct_count: int
+    incorrect_count: int
+    unanswered_count: int
     total_questions: int
+    total_answered: int
+    time_taken_seconds: Optional[int]
+    pass_mark: int
     evaluated_at: Optional[datetime]
 
 
@@ -101,6 +111,30 @@ class FunnelOut(BaseModel):
     attempted: int
     submitted: int
     evaluated: int
+
+
+class AuditLogIn(BaseModel):
+    event_type: str
+    category: str
+    severity: str
+    details: Optional[str] = None
+    assessment_id: Optional[str] = None
+    ip_address: Optional[str] = None
+    session_id: Optional[str] = None
+
+
+class AuditLogOut(BaseModel):
+    id: int
+    event_type: str
+    category: str
+    severity: str
+    details: Optional[str]
+    user_email: Optional[str]
+    user_name: Optional[str]
+    assessment_title: Optional[str]
+    ip_address: Optional[str]
+    session_id: Optional[str]
+    created_at: datetime
 
 
 class CreateUserRequest(BaseModel):
@@ -208,14 +242,35 @@ async def health():
 
 @app.get("/api/questions", response_model=List[QuestionOut])
 async def get_questions(session: dict = Depends(get_assessment_session), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Question).order_by(Question.difficulty))
+    # Session token contains application_id (TestSession ID), not assessment_id
+    application_id = session.get("application_id")
+    if not application_id:
+        raise HTTPException(status_code=400, detail="Missing application_id in session")
+
+    # Look up test session to get the assessment_id
+    ts_result = await db.execute(
+        select(TestSession).where(TestSession.id == uuid.UUID(application_id))
+    )
+    test_session = ts_result.scalar_one_or_none()
+    if not test_session:
+        raise HTTPException(status_code=404, detail="Test session not found")
+
+    result = await db.execute(
+        select(Question)
+        .where(Question.assessment_id == test_session.assessment_id)
+        .order_by(Question.sort_order)
+    )
     questions = result.scalars().all()
     return [
         QuestionOut(
             id=str(q.id),
             question_text=q.question_text,
+            code_snippet=q.code_snippet,
             options=q.options,
-            difficulty=q.difficulty
+            correct_option=q.correct_option,
+            points=q.points,
+            difficulty=q.difficulty,
+            sort_order=q.sort_order
         )
         for q in questions
     ]
@@ -249,8 +304,10 @@ async def submit_assessment(
             message="Assessment already submitted"
         )
 
-    # Fetch questions to validate answers
-    result = await db.execute(select(Question))
+    # Fetch questions for this assessment to validate answers
+    result = await db.execute(
+        select(Question).where(Question.assessment_id == test_session.assessment_id)
+    )
     questions = {str(q.id): q for q in result.scalars().all()}
 
     # Store responses
@@ -270,7 +327,22 @@ async def submit_assessment(
 
     test_session.application_status = ApplicationStatus.SUBMITTED
     test_session.submitted_at = datetime.utcnow()
+    if test_session.started_at:
+        delta = test_session.submitted_at - test_session.started_at
+        test_session.time_taken_seconds = int(delta.total_seconds())
+    test_session.total_answered = len(req.answers)
     await db.commit()
+
+    # Log submission
+    await log_audit_event(
+        db=db,
+        event_type=AuditEventType.ASSESSMENT_SUBMITTED,
+        category=AuditEventCategory.ASSESSMENT_CANDIDATE,
+        severity=SeverityLevel.INFORMATIONAL,
+        user_id=test_session.candidate_id,
+        assessment_id=test_session.assessment_id,
+        details=f"Assessment submitted. Session: {application_id}, Answers: {len(req.answers)}",
+    )
 
     # Enqueue evaluation job
     try:
@@ -279,6 +351,15 @@ async def submit_assessment(
             "enqueued_at": datetime.utcnow().isoformat()
         })
         await redis_client.lpush("evaluation:queue", job_payload)
+        await log_audit_event(
+            db=db,
+            event_type=AuditEventType.EVAL_QUEUED,
+            category=AuditEventCategory.EVALUATION,
+            severity=SeverityLevel.INFORMATIONAL,
+            user_id=test_session.candidate_id,
+            assessment_id=test_session.assessment_id,
+            details=f"Evaluation queued for session {application_id}",
+        )
     except Exception:
         # Fallback: store in pending_evaluations for recovery
         pending = PendingEvaluation(
@@ -359,6 +440,14 @@ async def delete_user(
         raise HTTPException(status_code=404, detail="User not found")
     user.is_deleted = True
     await db.commit()
+    await log_audit_event(
+        db=db,
+        event_type=AuditEventType.USER_DELETED,
+        category=AuditEventCategory.ADMIN,
+        severity=SeverityLevel.HIGH,
+        user_id=current_user.id,
+        details=f"Soft-deleted user {user.email} (by {current_user.email})",
+    )
     return {"detail": "User deleted successfully"}
 
 
@@ -371,8 +460,9 @@ async def list_scores(
     db: AsyncSession = Depends(get_db)
 ):
     query = (
-        select(TestSession, User)
+        select(TestSession, User, Assessment)
         .join(User, TestSession.candidate_id == User.id)
+        .join(Assessment, TestSession.assessment_id == Assessment.id)
         .where(TestSession.application_status == ApplicationStatus.EVALUATED)
     )
 
@@ -388,12 +478,19 @@ async def list_scores(
             id=str(ts.id),
             application_id=str(ts.id),
             candidate_name=user.full_name,
+            candidate_email=user.email,
+            assessment_title=assessment.title,
             percentage=ts.score_percentage or 0,
             correct_count=ts.correct_count or 0,
+            incorrect_count=(ts.total_answered or 0) - (ts.correct_count or 0),
+            unanswered_count=(ts.total_questions or 0) - (ts.total_answered or 0),
             total_questions=ts.total_questions or 0,
+            total_answered=ts.total_answered or 0,
+            time_taken_seconds=ts.time_taken_seconds,
+            pass_mark=assessment.pass_mark,
             evaluated_at=ts.evaluated_at
         )
-        for ts, user in rows
+        for ts, user, assessment in rows
     ]
 
 
@@ -470,6 +567,8 @@ async def get_submission_status(
             "percentage": test_session.score_percentage,
             "correct_count": test_session.correct_count,
             "total_questions": test_session.total_questions,
+            "total_answered": test_session.total_answered,
+            "time_taken_seconds": test_session.time_taken_seconds,
             "evaluated_at": test_session.evaluated_at.isoformat() if test_session.evaluated_at else None
         }
 
@@ -477,6 +576,7 @@ async def get_submission_status(
         "application_id": application_id,
         "status": test_session.application_status.value,
         "submitted_at": test_session.submitted_at.isoformat() if test_session.submitted_at else None,
+        "time_taken_seconds": test_session.time_taken_seconds,
         "score": score_data
     }
 
@@ -487,9 +587,8 @@ async def create_user(
     current_user: User = Depends(require_employer),
     db: AsyncSession = Depends(get_db)
 ):
-    import bcrypt
     role = UserRole.ADMIN if req.role.lower() == "admin" else UserRole.CANDIDATE
-    password_hash = bcrypt.hashpw(req.password.encode(), bcrypt.gensalt()).decode()
+    password_hash = (await asyncio.to_thread(bcrypt.hashpw, req.password.encode(), bcrypt.gensalt())).decode()
 
     result = await db.execute(select(User).where(User.email == req.email))
     existing = result.scalar_one_or_none()
@@ -504,7 +603,6 @@ async def create_user(
             existing.is_verified = True
             await db.commit()
 
-            import asyncio
             asyncio.create_task(asyncio.to_thread(send_welcome_email, existing.email, existing.full_name, req.password))
 
             return CreateUserResponse(
@@ -528,8 +626,16 @@ async def create_user(
     await db.commit()
 
     # Send welcome email asynchronously
-    import asyncio
     asyncio.create_task(asyncio.to_thread(send_welcome_email, user.email, user.full_name, req.password))
+
+    await log_audit_event(
+        db=db,
+        event_type=AuditEventType.USER_CREATED,
+        category=AuditEventCategory.ADMIN,
+        severity=SeverityLevel.INFORMATIONAL,
+        user_id=current_user.id,
+        details=f"Created user {req.email} with role {req.role} (by {current_user.email})",
+    )
 
     return CreateUserResponse(
         id=str(user.id),
@@ -582,6 +688,16 @@ async def create_assignment(
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
 
+    # Check for existing assignment
+    existing = await db.execute(
+        select(AssessmentAssignment).where(
+            AssessmentAssignment.candidate_id == uuid.UUID(req.candidate_id),
+            AssessmentAssignment.assessment_id == uuid.UUID(req.assessment_id)
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Assessment already assigned to this candidate")
+
     # Create assignment
     assignment = AssessmentAssignment(
         id=uuid.uuid4(),
@@ -599,17 +715,27 @@ async def create_assignment(
     )
     db.add(test_session)
     await db.commit()
+    await db.refresh(assignment)
 
     # Send assignment invite email asynchronously
-    import asyncio
     asyncio.create_task(asyncio.to_thread(send_assignment_invite, candidate.email, candidate.full_name, assessment.title))
+
+    await log_audit_event(
+        db=db,
+        event_type=AuditEventType.CANDIDATE_ASSIGNED,
+        category=AuditEventCategory.ADMIN,
+        severity=SeverityLevel.INFORMATIONAL,
+        user_id=current_user.id,
+        assessment_id=uuid.UUID(req.assessment_id),
+        details=f"Candidate {candidate.email} assigned to assessment '{assessment.title}' by {current_user.email}",
+    )
 
     return AssignmentResponse(
         id=str(assignment.id),
         candidate_id=str(assignment.candidate_id),
         assessment_id=str(assignment.assessment_id),
         status="assigned",
-        assigned_at=assignment.assigned_at if assignment.assigned_at else datetime.utcnow(),
+        assigned_at=assignment.assigned_at or datetime.utcnow(),
     )
 
 
@@ -689,12 +815,12 @@ class AssessmentIn(BaseModel):
 class QuestionOut(BaseModel):
     id: str
     question_text: str
-    code_snippet: Optional[str]
+    code_snippet: Optional[str] = None
     options: List[str]
-    correct_option: int
-    points: int
+    correct_option: int = 0
+    points: int = 1
     difficulty: int
-    sort_order: int
+    sort_order: int = 0
 
 
 class AssessmentDetailOut(BaseModel):
@@ -775,6 +901,16 @@ async def create_assessment(
         ))
 
     await db.commit()
+
+    await log_audit_event(
+        db=db,
+        event_type=AuditEventType.ASSESSMENT_CREATED,
+        category=AuditEventCategory.ADMIN,
+        severity=SeverityLevel.INFORMATIONAL,
+        user_id=current_user.id,
+        assessment_id=assessment.id,
+        details=f"Assessment '{assessment.title}' created by {current_user.email}",
+    )
 
     # Defensive: SQLAlchemy may return enum or string depending on state
     diff_val = assessment.difficulty.value if hasattr(assessment.difficulty, 'value') else assessment.difficulty
@@ -857,6 +993,7 @@ async def update_assessment(
     assessment.duration_minutes = req.duration_minutes
     assessment.pass_mark = req.pass_mark
     assessment.max_attempts = req.max_attempts
+    was_published = assessment.is_published
     assessment.is_published = req.is_published
     assessment.total_questions = len(req.questions)
 
@@ -879,6 +1016,27 @@ async def update_assessment(
         ))
 
     await db.commit()
+
+    await log_audit_event(
+        db=db,
+        event_type=AuditEventType.ASSESSMENT_EDITED,
+        category=AuditEventCategory.ADMIN,
+        severity=SeverityLevel.INFORMATIONAL,
+        user_id=current_user.id,
+        assessment_id=assessment.id,
+        details=f"Assessment '{assessment.title}' updated by {current_user.email}",
+    )
+
+    if not was_published and assessment.is_published:
+        await log_audit_event(
+            db=db,
+            event_type=AuditEventType.ASSESSMENT_PUBLISHED,
+            category=AuditEventCategory.ADMIN,
+            severity=SeverityLevel.INFORMATIONAL,
+            user_id=current_user.id,
+            assessment_id=assessment.id,
+            details=f"Assessment '{assessment.title}' published by {current_user.email}",
+        )
 
     diff_val = assessment.difficulty.value if hasattr(assessment.difficulty, 'value') else assessment.difficulty
 
@@ -916,8 +1074,18 @@ async def delete_assessment(
     if active_result.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Cannot delete assessment with active sessions")
 
+    title = assessment.title
     await db.delete(assessment)
     await db.commit()
+    await log_audit_event(
+        db=db,
+        event_type=AuditEventType.ASSESSMENT_DELETED,
+        category=AuditEventCategory.ADMIN,
+        severity=SeverityLevel.HIGH,
+        user_id=current_user.id,
+        assessment_id=assessment.id,
+        details=f"Assessment '{title}' deleted by {current_user.email}",
+    )
     return {"message": "Assessment deleted"}
 
 
@@ -1100,4 +1268,173 @@ async def bulk_assign_assessment(
 
     await db.commit()
 
+    if assigned_count > 0:
+        await log_audit_event(
+            db=db,
+            event_type=AuditEventType.CANDIDATE_ASSIGNED,
+            category=AuditEventCategory.ADMIN,
+            severity=SeverityLevel.INFORMATIONAL,
+            user_id=current_user.id,
+            assessment_id=assessment.id,
+            details=f"Bulk assigned assessment '{assessment.title}' to {assigned_count} candidate(s) by {current_user.email}",
+        )
+
     return {"message": f"Assigned to {assigned_count} candidate(s)", "assigned_count": assigned_count}
+
+
+# ─── Audit Logging Helper ───
+
+async def log_audit_event(
+    db: AsyncSession,
+    event_type: AuditEventType,
+    category: AuditEventCategory,
+    severity: SeverityLevel,
+    user_id: Optional[uuid.UUID] = None,
+    details: Optional[str] = None,
+    assessment_id: Optional[uuid.UUID] = None,
+    ip_address: Optional[str] = None,
+    session_id: Optional[str] = None,
+):
+    log = AuditLog(
+        user_id=user_id,
+        event_type=event_type,
+        category=category,
+        severity=severity,
+        details=details,
+        assessment_id=assessment_id,
+        ip_address=ip_address,
+        session_id=session_id,
+    )
+    db.add(log)
+    await db.commit()
+
+    # Publish to SSE stream
+    try:
+        event_data = json.dumps({
+            "event_type": event_type.value,
+            "category": category.value,
+            "severity": severity.value,
+            "details": details,
+            "user_id": str(user_id) if user_id else None,
+            "assessment_id": str(assessment_id) if assessment_id else None,
+            "ip_address": ip_address,
+            "session_id": session_id,
+            "created_at": datetime.utcnow().isoformat(),
+        })
+        await redis_client.publish("audit:events", event_data)
+    except Exception:
+        pass
+
+
+# ─── Audit Endpoints ───
+
+@app.post("/api/audit/events")
+async def create_audit_event(
+    req: AuditLogIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    try:
+        event_type = AuditEventType[req.event_type.upper().replace(" ", "_")]
+        category = AuditEventCategory[req.category.upper().replace(" ", "_")]
+        severity = SeverityLevel[req.severity.upper()]
+    except KeyError:
+        raise HTTPException(status_code=400, detail="Invalid event_type, category, or severity")
+
+    assessment_uuid = uuid.UUID(req.assessment_id) if req.assessment_id else None
+
+    await log_audit_event(
+        db=db,
+        event_type=event_type,
+        category=category,
+        severity=severity,
+        user_id=current_user.id,
+        details=req.details,
+        assessment_id=assessment_uuid,
+        ip_address=req.ip_address,
+        session_id=req.session_id,
+    )
+    return {"message": "Audit event logged"}
+
+
+@app.get("/api/audit/events", response_model=List[AuditLogOut])
+async def list_audit_events(
+    user_id: Optional[str] = Query(None),
+    event_type: Optional[str] = Query(None),
+    category: Optional[str] = Query(None),
+    severity: Optional[str] = Query(None),
+    assessment_id: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(require_employer),
+    db: AsyncSession = Depends(get_db)
+):
+    query = select(AuditLog, User, Assessment).outerjoin(User, AuditLog.user_id == User.id).outerjoin(Assessment, AuditLog.assessment_id == Assessment.id).order_by(AuditLog.created_at.desc())
+
+    if user_id:
+        query = query.where(AuditLog.user_id == uuid.UUID(user_id))
+    if event_type:
+        query = query.where(AuditLog.event_type == event_type)
+    if category:
+        query = query.where(AuditLog.category == category)
+    if severity:
+        query = query.where(AuditLog.severity == severity)
+    if assessment_id:
+        query = query.where(AuditLog.assessment_id == uuid.UUID(assessment_id))
+    if date_from:
+        query = query.where(AuditLog.created_at >= datetime.fromisoformat(date_from))
+    if date_to:
+        query = query.where(AuditLog.created_at <= datetime.fromisoformat(date_to))
+
+    query = query.limit(limit).offset(offset)
+    result = await db.execute(query)
+    rows = result.all()
+
+    return [
+        AuditLogOut(
+            id=log.id,
+            event_type=log.event_type.value,
+            category=log.category.value,
+            severity=log.severity.value,
+            details=log.details,
+            user_email=user.email if user else None,
+            user_name=user.full_name if user else None,
+            assessment_title=assessment.title if assessment else None,
+            ip_address=log.ip_address,
+            session_id=log.session_id,
+            created_at=log.created_at,
+        )
+        for log, user, assessment in rows
+    ]
+
+
+@app.get("/api/audit/events/stream")
+async def audit_events_stream(
+    current_user: User = Depends(require_employer),
+):
+    async def event_generator() -> AsyncGenerator[str, None]:
+        pubsub = redis_client.pubsub()
+        await pubsub.subscribe("audit:events")
+        try:
+            while True:
+                message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                if message and message["type"] == "message":
+                    data = message["data"]
+                    if isinstance(data, bytes):
+                        data = data.decode("utf-8")
+                    yield f"data: {data}\n\n"
+        except asyncio.CancelledError:
+            await pubsub.unsubscribe("audit:events")
+            raise
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )

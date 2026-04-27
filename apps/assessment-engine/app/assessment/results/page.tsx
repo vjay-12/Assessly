@@ -3,24 +3,75 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+interface ScoreData {
+  percentage: number;
+  correct_count: number;
+  total_questions: number;
+  total_answered: number;
+  time_taken_seconds: number;
+  evaluated_at: string;
+}
+
 export default function ResultsPage() {
   const router = useRouter();
   const [submission, setSubmission] = useState<any>(null);
+  const [score, setScore] = useState<ScoreData | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const sub = localStorage.getItem('assessment_submission');
     if (sub) {
-      setSubmission(JSON.parse(sub));
+      const parsed = JSON.parse(sub);
+      setSubmission(parsed);
+      // Fetch actual score data
+      fetchScore(parsed.application_id);
+    } else {
+      setLoading(false);
     }
   }, []);
 
-  const score = submission?.score;
-  const percentage = score?.percentage || 84;
-  const correct = score?.correct_count || 8;
-  const total = score?.total_questions || 10;
-  const incorrect = total - correct - (total - correct - (score?.unanswered || 0));
-  const unanswered = total - correct - incorrect;
+  const fetchScore = async (applicationId: string) => {
+    const token = localStorage.getItem('access_token');
+    if (!token || !applicationId) {
+      setLoading(false);
+      return;
+    }
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/submissions/${applicationId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.score) {
+          setScore(data.score);
+        }
+      }
+    } catch {
+      // ignore
+    }
+    setLoading(false);
+  };
+
+  const percentage = score?.percentage ?? 0;
+  const correct = score?.correct_count ?? 0;
+  const totalQuestions = score?.total_questions ?? 0;
+  const totalAnswered = score?.total_answered ?? 0;
+  const timeTakenSeconds = score?.time_taken_seconds ?? submission?.time_taken_seconds ?? 0;
+
+  const incorrect = totalAnswered - correct;
+  const unanswered = totalQuestions - totalAnswered;
   const passed = percentage >= 50;
+
+  const formatTime = (seconds: number) => {
+    if (!seconds || seconds <= 0) return '—';
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}m ${s}s`;
+  };
+
+  const submittedAt = submission?.submitted_at
+    ? new Date(submission.submitted_at).toLocaleString()
+    : new Date().toLocaleString();
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
@@ -42,7 +93,7 @@ export default function ResultsPage() {
                 />
               </svg>
               <div className="absolute text-center">
-                <div className="text-4xl font-bold">{percentage}</div>
+                <div className="text-4xl font-bold">{Math.round(percentage)}</div>
                 <div className="text-sm text-gray-500">out of 100</div>
               </div>
             </div>
@@ -60,11 +111,11 @@ export default function ResultsPage() {
           <div className="mt-8 grid grid-cols-2 gap-4">
             <div className="rounded-xl bg-slate-50 p-4 text-center">
               <div className="text-sm text-gray-500">Submitted On</div>
-              <div className="mt-1 font-semibold">{new Date().toLocaleString()}</div>
+              <div className="mt-1 font-semibold">{submittedAt}</div>
             </div>
             <div className="rounded-xl bg-slate-50 p-4 text-center">
               <div className="text-sm text-gray-500">Time Taken</div>
-              <div className="mt-1 font-semibold">—</div>
+              <div className="mt-1 font-semibold">{formatTime(timeTakenSeconds)}</div>
             </div>
           </div>
 

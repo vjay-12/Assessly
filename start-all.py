@@ -21,16 +21,19 @@ COLORS = {
     "RESET": "\033[0m",
 }
 
+# Use conda env Python (has all dependencies like email-validator)
+PYTHON_EXE = r"C:\Users\vijay\anaconda3\envs\zetheta\python.exe"
+
 SERVICES = [
     {
         "name": "AUTH",
-        "cmd": [sys.executable, "run_auth.py"],
+        "cmd": [PYTHON_EXE, "run_auth.py"],
         "cwd": os.path.dirname(os.path.abspath(__file__)),
         "port": 3001,
     },
     {
         "name": "GATEWAY",
-        "cmd": [sys.executable, "run_gateway.py"],
+        "cmd": [PYTHON_EXE, "run_gateway.py"],
         "cwd": os.path.dirname(os.path.abspath(__file__)),
         "port": 3000,
     },
@@ -89,7 +92,7 @@ def start_service(service):
 
     if sys.platform == "win32":
         kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
-        # npm is a .cmd file on Windows — needs shell=True
+        # npm is a .cmd file on Windows -- needs shell=True
         if service["cmd"][0] == "npm":
             kwargs["shell"] = True
 
@@ -137,10 +140,10 @@ if __name__ == "__main__":
         signal.signal(signal.SIGTERM, shutdown)
 
     print("=" * 60)
-    print("  Zetheta Platform — Starting all services")
+    print("  Zetheta Platform - Starting all services")
     print("=" * 60)
     for svc in SERVICES:
-        print(f"  • {svc['name']:12} → http://localhost:{svc['port']}")
+        print(f"  * {svc['name']:12} -> http://localhost:{svc['port']}")
     print("=" * 60)
     print("Press Ctrl+C to stop all services\n")
 
@@ -149,16 +152,17 @@ if __name__ == "__main__":
         time.sleep(1.5)  # Stagger starts to reduce race conditions
 
     # Keep the main thread alive
+    exited = set()
     try:
         while True:
             time.sleep(1)
             # Check if any process died unexpectedly
-            for svc in SERVICES:
-                for proc in processes:
-                    if proc.poll() is not None and proc.poll() != 0:
-                        print(
-                            f"\033[91m[MANAGER]\033[0m Service exited with code {proc.poll()}",
-                            flush=True,
-                        )
+            for proc in processes:
+                if proc.poll() is not None and proc.poll() != 0 and id(proc) not in exited:
+                    exited.add(id(proc))
+                    print(
+                        f"\033[91m[MANAGER]\033[0m Service exited with code {proc.poll()}. Press Ctrl+C to stop.",
+                        flush=True,
+                    )
     except KeyboardInterrupt:
         shutdown()

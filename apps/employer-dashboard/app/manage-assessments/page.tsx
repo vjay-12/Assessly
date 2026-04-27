@@ -221,8 +221,8 @@ function ManageContent() {
       </div>
 
       {/* Table */}
-      <div className="rounded-2xl bg-white shadow-sm">
-        <table className="w-full text-left text-sm">
+      <div className="overflow-x-auto rounded-2xl bg-white shadow-sm">
+        <table className="w-full min-w-[900px] text-left text-sm">
           <thead>
             <tr className="border-b text-xs uppercase tracking-wide text-gray-500">
               <th className="px-6 py-4">Title</th>
@@ -262,11 +262,11 @@ function ManageContent() {
                   )}
                 </td>
                 <td className="px-6 py-4">
-                  <div className="flex gap-2">
-                    <button onClick={() => router.push(`/assessment-builder?id=${a.id}`)} className="rounded-lg px-2 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50">Edit</button>
-                    <button onClick={() => openAssign(a)} className="rounded-lg px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50">Assign</button>
-                    <button onClick={() => duplicateAssessment(a.id)} className="rounded-lg px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50">Duplicate</button>
-                    <button onClick={() => deleteAssessment(a.id)} className="rounded-lg px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50">Delete</button>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => router.push(`/assessment-builder?id=${a.id}`)} className="rounded-md px-2 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50">Edit</button>
+                    <button onClick={() => openAssign(a)} className="rounded-md px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50">Assign</button>
+                    <button onClick={() => duplicateAssessment(a.id)} className="rounded-md px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50">Duplicate</button>
+                    <button onClick={() => deleteAssessment(a.id)} className="rounded-md px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50">Delete</button>
                   </div>
                 </td>
               </tr>

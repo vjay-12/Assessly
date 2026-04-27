@@ -5,7 +5,7 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
-    "start:all": "concurrently --names AUTH,GATEWAY,CANDIDATE,ASSESSMENT,EMPLOYER --prefix-colors blue,green,yellow,magenta,cyan \"python run_auth.py\" \"python run_gateway.py\" \"cd apps/candidate-portal && npm run dev\" \"cd apps/assessment-engine && npm run dev\" \"cd apps/employer-dashboard && npm run dev\"",
+    "start:all": "concurrently --names AUTH,GATEWAY,CANDIDATE,ASSESSMENT,EMPLOYER --prefix-colors blue,green,yellow,magenta,cyan \"C:\\\\Users\\\\vijay\\\\anaconda3\\\\envs\\\\zetheta\\\\python.exe run_auth.py\" \"C:\\\\Users\\\\vijay\\\\anaconda3\\\\envs\\\\zetheta\\\\python.exe run_gateway.py\" \"cd apps/candidate-portal && npm run dev\" \"cd apps/assessment-engine && npm run dev\" \"cd apps/employer-dashboard && npm run dev\"",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "db:migrate": "cd packages/shared-db && alembic upgrade head",
