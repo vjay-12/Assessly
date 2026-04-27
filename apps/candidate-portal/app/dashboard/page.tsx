@@ -38,8 +38,17 @@ export default function CandidateDashboard() {
     fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/my-sessions`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((r) => r.json())
+      .then((r) => {
+        if (r.status === 401) {
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          router.push('/login');
+          return null;
+        }
+        return r.json();
+      })
       .then((data) => {
+        if (data === null) return;
         if (Array.isArray(data)) {
           setSessions(data);
         } else {
