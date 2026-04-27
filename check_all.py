@@ -145,7 +145,7 @@ async def check_database():
 
 async def main():
     print("=" * 60)
-    print("  ZET HETA PLATFORM - COMPONENT HEALTH CHECK")
+    print("  ASSESSLY PLATFORM - COMPONENT HEALTH CHECK")
     print("=" * 60)
     
     await check_auth_service()
