@@ -88,6 +88,19 @@ function ScoresContent() {
     return `${m}m ${s}s`;
   };
 
+  const toLocalTime = (iso: string | null | undefined) => {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    });
+  };
+
   const passed = (s: Score) => s.percentage >= s.pass_mark;
 
   return (
@@ -174,7 +187,7 @@ function ScoresContent() {
                 <td className="px-4 py-3 text-xs font-medium text-gray-500">{s.unanswered_count}</td>
                 <td className="px-4 py-3 text-xs text-gray-500">{formatTime(s.time_taken_seconds)}</td>
                 <td className="px-4 py-3 text-xs text-gray-500">
-                  {s.evaluated_at ? new Date(s.evaluated_at).toLocaleString() : '—'}
+                  {toLocalTime(s.evaluated_at)}
                 </td>
                 <td className="px-4 py-3">
                   {passed(s) ? (

@@ -2,7 +2,7 @@ import os
 import uuid
 import json
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, AsyncGenerator
 
 import bcrypt
@@ -122,6 +122,18 @@ class FunnelOut(BaseModel):
     attempted: int
     submitted: int
     evaluated: int
+
+
+class SummaryOut(BaseModel):
+    total_candidates: int
+    total_assessments: int
+    avg_score: float
+    pass_rate: float
+    avg_time_taken_seconds: int
+    evaluated_today: int
+    submitted_today: int
+    drop_off_rate: float
+    invitation_acceptance: float
 
 
 class AuditLogIn(BaseModel):
@@ -398,7 +410,7 @@ async def submit_assessment(
         db.add(response)
 
     test_session.application_status = ApplicationStatus.SUBMITTED
-    test_session.submitted_at = datetime.utcnow()
+    test_session.submitted_at = datetime.now(timezone.utc)
     if test_session.started_at:
         submitted = test_session.submitted_at
         started = test_session.started_at
@@ -587,6 +599,89 @@ async def get_funnel(current_user: User = Depends(require_employer), db: AsyncSe
         attempted=counts.get("attempted", 0) + counts.get("submitted", 0) + counts.get("evaluated", 0),
         submitted=counts.get("submitted", 0) + counts.get("evaluated", 0),
         evaluated=counts.get("evaluated", 0)
+    )
+
+
+@app.get("/api/analytics/summary", response_model=SummaryOut)
+async def get_summary(current_user: User = Depends(require_employer), db: AsyncSession = Depends(get_db)):
+    # Total candidates
+    total_candidates_result = await db.execute(
+        select(func.count(User.id)).where(User.role == UserRole.CANDIDATE)
+    )
+    total_candidates = total_candidates_result.scalar() or 0
+
+    # Total assessments
+    total_assessments_result = await db.execute(select(func.count(Assessment.id)))
+    total_assessments = total_assessments_result.scalar() or 0
+
+    # Funnel counts
+    funnel_result = await db.execute(
+        select(TestSession.application_status, func.count(TestSession.id)).group_by(TestSession.application_status)
+    )
+    counts = {status.value: count for status, count in funnel_result.all()}
+    applied = counts.get("applied", 0) + counts.get("attempted", 0) + counts.get("submitted", 0) + counts.get("evaluated", 0)
+    attempted = counts.get("attempted", 0) + counts.get("submitted", 0) + counts.get("evaluated", 0)
+    submitted = counts.get("submitted", 0) + counts.get("evaluated", 0)
+    evaluated = counts.get("evaluated", 0)
+
+    # Avg score and pass rate (only evaluated sessions)
+    eval_result = await db.execute(
+        select(TestSession.score_percentage, Assessment.pass_mark)
+        .join(Assessment, TestSession.assessment_id == Assessment.id)
+        .where(TestSession.application_status == ApplicationStatus.EVALUATED)
+    )
+    eval_rows = eval_result.all()
+    if eval_rows:
+        avg_score = sum(row.score_percentage for row in eval_rows) / len(eval_rows)
+        passed_count = sum(1 for row in eval_rows if row.score_percentage is not None and row.score_percentage >= row.pass_mark)
+        pass_rate = (passed_count / len(eval_rows)) * 100
+    else:
+        avg_score = 0.0
+        pass_rate = 0.0
+
+    # Avg time taken (submitted or evaluated)
+    time_result = await db.execute(
+        select(func.avg(TestSession.time_taken_seconds))
+        .where(TestSession.time_taken_seconds.is_not(None))
+    )
+    avg_time = time_result.scalar()
+    avg_time_taken_seconds = int(avg_time) if avg_time else 0
+
+    # Evaluated today
+    today = datetime.now(timezone.utc).date()
+    evaluated_today_result = await db.execute(
+        select(func.count(TestSession.id))
+        .where(
+            TestSession.application_status == ApplicationStatus.EVALUATED,
+            func.date(TestSession.evaluated_at) == today
+        )
+    )
+    evaluated_today = evaluated_today_result.scalar() or 0
+
+    # Submitted today
+    submitted_today_result = await db.execute(
+        select(func.count(TestSession.id))
+        .where(
+            TestSession.application_status.in_([ApplicationStatus.SUBMITTED, ApplicationStatus.EVALUATED]),
+            func.date(TestSession.submitted_at) == today
+        )
+    )
+    submitted_today = submitted_today_result.scalar() or 0
+
+    # Derived metrics
+    drop_off_rate = ((applied - submitted) / applied * 100) if applied > 0 else 0.0
+    invitation_acceptance = ((attempted / applied) * 100) if applied > 0 else 0.0
+
+    return SummaryOut(
+        total_candidates=total_candidates,
+        total_assessments=total_assessments,
+        avg_score=round(avg_score, 1),
+        pass_rate=round(pass_rate, 1),
+        avg_time_taken_seconds=avg_time_taken_seconds,
+        evaluated_today=evaluated_today,
+        submitted_today=submitted_today,
+        drop_off_rate=round(drop_off_rate, 1),
+        invitation_acceptance=round(invitation_acceptance, 1),
     )
 
 

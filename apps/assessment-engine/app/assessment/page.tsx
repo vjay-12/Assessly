@@ -59,12 +59,13 @@ function AssessmentContent() {
         }
         setSession(data);
         const headers = { Authorization: `Bearer ${data.session_token}` };
+        const appId = data.application_id;
         return Promise.all([
           fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/questions`, { headers }).then((r) => r.json()),
           fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/assessment-info`, { headers }).then((r) => r.json()),
-        ]);
+        ]).then(([questionsData, infoData]) => ({ questionsData, infoData, appId }));
       })
-      .then(([questionsData, infoData]) => {
+      .then(({ questionsData, infoData, appId }) => {
         setQuestions(questionsData || []);
         if (infoData?.duration_minutes) {
           setAssessmentInfo(infoData);
@@ -72,7 +73,6 @@ function AssessmentContent() {
           localStorage.setItem('assessment_duration', String(durationSeconds));
 
           // Calculate remaining time based on when assessment was first loaded
-          const appId = session?.application_id;
           const startKey = appId ? `assessment_start_time_${appId}` : null;
           const storedStart = startKey ? localStorage.getItem(startKey) : null;
 

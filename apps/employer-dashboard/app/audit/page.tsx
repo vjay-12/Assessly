@@ -171,9 +171,17 @@ function AuditContent() {
     setTimeout(() => setToast(''), 2000);
   };
 
-  const formatTime = (d: string) => {
-    const date = new Date(d);
-    return date.toLocaleString();
+  const formatTime = (d: string | null | undefined) => {
+    if (!d) return '—';
+    return new Date(d).toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    });
   };
 
   return (

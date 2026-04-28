@@ -9,7 +9,7 @@ interface TestSession {
   status: string;
   application_status: string;
   score_percentage: number | null;
-  due_at: string | null;
+  assigned_at: string | null;
   total_questions: number;
   duration_minutes: number;
 }
@@ -95,6 +95,19 @@ export default function CandidateDashboard() {
     }
   };
 
+  const toLocalTime = (iso: string | null | undefined) => {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    });
+  };
+
   const statusBadge = (status: string) => {
     const map: Record<string, string> = {
       applied: 'bg-blue-50 text-blue-700',
@@ -174,6 +187,9 @@ export default function CandidateDashboard() {
               <div className="mt-2 space-y-1 text-sm text-gray-500">
                 <p>📝 {session.total_questions || 0} Question{session.total_questions !== 1 ? 's' : ''}</p>
                 <p>⏱ {session.duration_minutes || 0} min{session.duration_minutes !== 1 ? 's' : ''}</p>
+                {session.assigned_at && (
+                  <p>📅 Assigned: {toLocalTime(session.assigned_at)}</p>
+                )}
                 {session.score_percentage !== null && (
                   <p>📊 Score: {session.score_percentage != null ? `${session.score_percentage.toFixed(1)}%` : 'Pending'}</p>
                 )}

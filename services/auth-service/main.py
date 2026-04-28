@@ -5,7 +5,7 @@ import hmac
 import hashlib
 import secrets
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import bcrypt
@@ -359,7 +359,7 @@ async def redeem_cross_app_token(req: RedeemTokenRequest, db: AsyncSession = Dep
     ]:
         was_first_attempt = session.application_status == ApplicationStatus.APPLIED
         session.application_status = ApplicationStatus.ATTEMPTED
-        session.started_at = datetime.utcnow()
+        session.started_at = datetime.now(timezone.utc)
         await db.commit()
 
         if was_first_attempt:

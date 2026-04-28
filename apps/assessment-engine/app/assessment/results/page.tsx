@@ -17,6 +17,20 @@ export default function ResultsPage() {
   const [submission, setSubmission] = useState<any>(null);
   const [score, setScore] = useState<ScoreData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [submittedAt, setSubmittedAt] = useState<string>('—');
+
+  const toLocalTime = (iso: string | null | undefined) => {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    });
+  };
 
   useEffect(() => {
     const sub = localStorage.getItem('assessment_submission');
@@ -24,6 +38,11 @@ export default function ResultsPage() {
     if (sub) {
       const parsed = JSON.parse(sub);
       setSubmission(parsed);
+      if (parsed.submitted_at) {
+        setSubmittedAt(toLocalTime(parsed.submitted_at));
+      } else {
+        setSubmittedAt(toLocalTime(new Date().toISOString()));
+      }
       // Fetch actual score data using assessment session token
       const session = sess ? JSON.parse(sess) : null;
       fetchScore(parsed.application_id, session?.session_token);
@@ -76,10 +95,6 @@ export default function ResultsPage() {
     const s = seconds % 60;
     return `${m}m ${s}s`;
   };
-
-  const submittedAt = submission?.submitted_at
-    ? new Date(submission.submitted_at).toLocaleString()
-    : new Date().toLocaleString();
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
