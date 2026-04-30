@@ -1,4 +1,4 @@
 {
-  "installCommand": "cd apps/candidate-portal && npm install",
+  "installCommand": "npm install",
   "buildCommand": "next build"
 }

@@ -1,4 +1,4 @@
 {
-  "installCommand": "cd apps/assessment-engine && npm install",
+  "installCommand": "npm install",
   "buildCommand": "next build"
 }
