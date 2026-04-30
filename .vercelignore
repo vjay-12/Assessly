@@ -1,4 +1,0 @@
-# Hide monorepo config from Vercel so each app deploys standalone
-pnpm-workspace.yaml
-pnpm-lock.yaml
-package-lock.json
