@@ -16,7 +16,11 @@
     "prettier": "^3.2.5",
     "turbo": "^2.0.0"
   },
-  "packageManager": "pnpm@10.6.5",
+  "workspaces": [
+    "apps/*",
+    "packages/shared-types",
+    "packages/shared-ui"
+  ],
   "engines": {
     "node": "20.x"
   }
