@@ -1,8 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   async rewrites() {
-    const apiUrl = process.env.NEXT_PUBLIC_API_GATEWAY_URL;
-    if (!apiUrl) return [];
+    let apiUrl = process.env.NEXT_PUBLIC_API_GATEWAY_URL || '';
+    apiUrl = apiUrl.trim().replace(/^["']|["']$/g, '');
+    if (!apiUrl || !apiUrl.startsWith('http')) return [];
     return [
       {
         source: '/api/:path*',
