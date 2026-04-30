@@ -1,0 +1,4 @@
+{
+  "installCommand": "cd apps/employer-dashboard && npm install",
+  "buildCommand": "next build"
+}
