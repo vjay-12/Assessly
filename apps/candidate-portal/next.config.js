@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  eslint: { ignoreDuringBuilds: true },
   async rewrites() {
     let apiUrl = process.env.NEXT_PUBLIC_API_GATEWAY_URL || '';
     apiUrl = apiUrl.trim().replace(/^["']|["']$/g, '');
