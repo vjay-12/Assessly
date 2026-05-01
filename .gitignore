@@ -38,6 +38,7 @@ venv/
 # Next.js
 .next/
 out/
+*.tsbuildinfo
 
 # Turbo
 .turbo/

@@ -65,7 +65,9 @@ function AssessmentContent() {
           fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/assessment-info`, { headers }).then((r) => r.json()),
         ]).then(([questionsData, infoData]) => ({ questionsData, infoData, appId }));
       })
-      .then(({ questionsData, infoData, appId }) => {
+      .then((result) => {
+        if (!result) return;
+        const { questionsData, infoData, appId } = result;
         setQuestions(questionsData || []);
         if (infoData?.duration_minutes) {
           setAssessmentInfo(infoData);
