@@ -175,7 +175,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 
 @app.post("/auth/login", response_model=TokenResponse)
 async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == req.email))
+    result = await db.execute(select(User).where(User.email == req.email, User.is_deleted == False))
     user = result.scalar_one_or_none()
     if not user:
         db.add(AuditLog(
