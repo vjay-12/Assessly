@@ -11,6 +11,7 @@ interface Candidate {
   is_verified: boolean;
   application_status: string | null;
   score_percentage: number | null;
+  assigned_assessments?: string[];
 }
 
 interface Assessment {
@@ -328,10 +329,21 @@ function CandidatesContent() {
               </tr>
             )}
             {filtered.map((c) => (
-              <tr key={c.id} className="border-b last:border-0 hover:bg-slate-50">
-                <td className="px-6 py-4">
+              <tr key={c.id} className="border-b last:border-0 transition-colors hover:bg-indigo-50">
+                <td className="px-6 py-4 relative group">
                   <div className="font-medium">{c.full_name}</div>
                   <div className="text-gray-500">{c.email}</div>
+                  {c.assigned_assessments && c.assigned_assessments.length > 0 && (
+                    <div className="absolute left-6 top-full z-10 mt-1 hidden w-max max-w-xs rounded-lg bg-gray-900 px-3 py-2 text-xs text-white shadow-lg group-hover:block">
+                      <div className="font-semibold mb-1">Assigned Assessments:</div>
+                      <ul className="list-disc pl-4">
+                        {c.assigned_assessments.map((title, i) => (
+                          <li key={i}>{title}</li>
+                        ))}
+                      </ul>
+                      <div className="absolute -top-1 left-4 h-2 w-2 rotate-45 bg-gray-900" />
+                    </div>
+                  )}
                 </td>
                 <td className="px-6 py-4">{statusBadge(c.application_status)}</td>
                 <td className="px-6 py-4">

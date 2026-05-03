@@ -98,6 +98,7 @@ class CandidateOut(BaseModel):
     is_verified: bool
     application_status: Optional[str] = None
     score_percentage: Optional[float] = None
+    assigned_assessments: List[str] = []
 
 
 class ScoreOut(BaseModel):
@@ -503,6 +504,14 @@ async def list_candidates(
         )
         latest_app = app_result.scalars().first()
 
+        assigned_result = await db.execute(
+            select(Assessment.title)
+            .join(AssessmentAssignment, Assessment.id == AssessmentAssignment.assessment_id)
+            .where(AssessmentAssignment.candidate_id == u.id)
+            .order_by(AssessmentAssignment.assigned_at.desc())
+        )
+        assigned_titles = [row[0] for row in assigned_result.all()]
+
         score_pct = None
         app_status = None
         if latest_app:
@@ -515,7 +524,8 @@ async def list_candidates(
             email=u.email,
             is_verified=u.is_verified,
             application_status=app_status,
-            score_percentage=score_pct
+            score_percentage=score_pct,
+            assigned_assessments=assigned_titles
         ))
 
     return candidates
