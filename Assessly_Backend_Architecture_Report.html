@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Assessly Platform — Backend Architecture & Design Report</title>
+<style>
+  @page { size: A4; margin: 2cm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    color: #1f2937;
+    background: #fff;
+    margin: 0;
+    padding: 0;
+  }
+  .container { max-width: 900px; margin: 0 auto; padding: 40px 20px; }
+  h1 { font-size: 2.2rem; color: #0f172a; border-bottom: 4px solid #3b82f6; padding-bottom: 10px; margin-top: 0; }
+  h2 { font-size: 1.5rem; color: #1e40af; margin-top: 40px; border-left: 5px solid #3b82f6; padding-left: 12px; page-break-after: avoid; }
+  h3 { font-size: 1.2rem; color: #1d4ed8; margin-top: 28px; page-break-after: avoid; }
+  h4 { font-size: 1.05rem; color: #2563eb; margin-top: 20px; }
+  p { margin: 10px 0; }
+  ul, ol { margin: 10px 0; padding-left: 24px; }
+  li { margin: 6px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.95rem; }
+  th, td { border: 1px solid #cbd5e1; padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #eff6ff; color: #1e3a8a; font-weight: 600; }
+  tr:nth-child(even) { background: #f8fafc; }
+  code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-family: Consolas, monospace; font-size: 0.9em; }
+  pre { background: #0f172a; color: #e2e8f0; padding: 14px; border-radius: 8px; overflow-x: auto; font-size: 0.9rem; }
+  .highlight { background: #fef3c7; padding: 2px 5px; border-radius: 3px; }
+  .box { background: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 14px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; }
+  .warn { background: #fff7ed; border-left-color: #f97316; }
+  .good { background: #f0fdf4; border-left-color: #22c55e; }
+  .diagram { background: #f8fafc; border: 1px dashed #94a3b8; padding: 16px; border-radius: 8px; font-family: Consolas, monospace; white-space: pre; overflow-x: auto; margin: 14px 0; }
+  .cover { text-align: center; padding: 80px 20px; }
+  .cover h1 { border: none; font-size: 2.6rem; }
+  .cover .subtitle { font-size: 1.2rem; color: #64748b; margin-top: 10px; }
+  .cover .meta { margin-top: 40px; color: #475569; }
+  .page-break { page-break-before: always; }
+  .simple { background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 12px 16px; margin: 10px 0; }
+  .simple-title { font-weight: 700; color: #065f46; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- COVER -->
+<div class="cover">
+  <h1>Assessly Platform</h1>
+  <div class="subtitle">Backend Architecture & Design Decisions Report</div>
+  <div class="meta">
+    <strong>Focus:</strong> Backend Services, Database Design, Communication Patterns & Security<br>
+    <strong>Project Type:</strong> Distributed Candidate Evaluation Platform<br>
+    <strong>Date:</strong> May 2026
+  </div>
+</div>
+
+<div class="page-break"></div>
+
+<h2>Table of Contents</h2>
+<ol>
+  <li><a href="#sec-1">Architecture Overview (The Big Picture)</a></li>
+  <li><a href="#sec-2">The Three Backend Services</a></li>
+  <li><a href="#sec-3">API Gateway — The Reception Desk</a></li>
+  <li><a href="#sec-4">Auth Service — The Security Office</a></li>
+  <li><a href="#sec-5">Evaluation Worker — The Background Grader</a></li>
+  <li><a href="#sec-6">Shared Layer (Database, Models, Email)</a></li>
+  <li><a href="#sec-7">Database Design (PostgreSQL + SQLAlchemy)</a></li>
+  <li><a href="#sec-8">Communication Patterns (Redis, HTTP, SSE)</a></li>
+  <li><a href="#sec-9">Security Architecture (JWT, Tokens, CORS)</a></li>
+  <li><a href="#sec-10">Data Flow — Example: Candidate Takes a Test</a></li>
+  <li><a href="#sec-11">Technology Choices & Why They Were Used</a></li>
+  <li><a href="#sec-12">Project Folder Structure</a></li>
+</ol>
+
+<div class="page-break"></div>
+
+<h2 id="sec-1">1. Architecture Overview (The Big Picture)</h2>
+
+<p>The Assessly backend follows a <strong>microservices pattern</strong> — meaning the backend is split into multiple independent services that communicate with each other. Each service has one job and does it well.</p>
+
+<div class="diagram">
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         FRONTEND APPLICATIONS                                │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                      │
+│  │ Candidate    │  │ Assessment   │  │ Employer     │                      │
+│  │ Portal       │  │ Engine       │  │ Dashboard    │                      │
+│  │ (port 4000)  │  │ (port 4001)  │  │ (port 4002)  │                      │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘                      │
+└─────────┼─────────────────┼─────────────────┼──────────────────────────────┘
+          │                 │                 │
+          └─────────────────┼─────────────────┘
+                            ▼
+                  ┌─────────────────┐
+                  │  API Gateway    │  ← All requests enter here
+                  │  (FastAPI)      │     Validates, routes, streams SSE
+                  │  Port: 3000     │
+                  └────────┬────────┘
+                           │
+         ┌─────────────────┼─────────────────┐
+         ▼                 ▼                 ▼
+   ┌──────────┐    ┌──────────────┐   ┌──────────┐
+   │  Auth    │    │  Evaluation  │   │  Redis   │
+   │ Service  │    │  Worker      │   │ (Queue)  │
+   │:3001     │    │              │   │ :6379    │
+   └────┬─────┘    └──────────────┘   └──────────┘
+        │
+        ▼
+   ┌──────────┐
+   │   Neon   │
+   │ Postgres │
+   └──────────┘
+</div>
+
+<div class="simple">
+  <div class="simple-title">Simple Analogy: A Restaurant</div>
+  <ul>
+    <li><strong>API Gateway</strong> = The reception desk — guests arrive here, orders are taken, food is delivered out</li>
+    <li><strong>Auth Service</strong> = The security guard — checks IDs, issues VIP badges, maintains a blacklist</li>
+    <li><strong>Evaluation Worker</strong> = The kitchen chef — works in the back, prepares meals (grades tests), no guest interaction</li>
+    <li><strong>Redis</strong> = The order ticket rail — carries orders from reception to kitchen, and alerts when food is ready</li>
+    <li><strong>PostgreSQL</strong> = The restaurant's filing cabinet — permanent records of every order, customer, and payment</li>
+  </ul>
+</div>
+
+<h2 id="sec-2">2. The Three Backend Services</h2>
+
+<table>
+<tr><th>Service</th><th>Port</th><th>Runtime</th><th>One-Line Role</th></tr>
+<tr><td><strong>API Gateway</strong></td><td>3000</td><td>FastAPI + Uvicorn</td><td>Main entrance — receives all frontend requests, validates them, routes to correct service</td></tr>
+<tr><td><strong>Auth Service</strong></td><td>3001</td><td>FastAPI + Uvicorn</td><td>Security office — login, register, JWT tokens, cross-app authentication</td></tr>
+<tr><td><strong>Evaluation Worker</strong></td><td>None</td><td>Python script</td><td>Background grader — scores tests asynchronously, no public URL</td></tr>
+</table>
+
+<h2 id="sec-3">3. API Gateway — The Reception Desk</h2>
+
+<h3>What It Does</h3>
+<ul>
+  <li><strong>Receives ALL frontend requests</strong> — every button click, form submission, and API call from the three Next.js apps comes here first</li>
+  <li><strong>Validates requests</strong> using Pydantic models — if data is missing a field or has the wrong type, it rejects with a clear error before any database query runs</li>
+  <li><strong>Routes to Auth</strong> when needed — for protected endpoints, it sends the JWT token to the Auth Service to verify it's valid</li>
+  <li><strong>Enqueues grading jobs</strong> — when a candidate submits a test, it saves answers to PostgreSQL and puts a "grade this" message into Redis</li>
+  <li><strong>Real-time updates via SSE</strong> — keeps a long-lived connection open to the employer dashboard and pushes live events (like "Candidate X just submitted!")</li>
+  <li><strong>Metrics endpoint</strong> — exposes <code>/metrics</code> for monitoring latency, request counts, error rates</li>
+</ul>
+
+<h3>Why It Exists</h3>
+<div class="box">
+Instead of having frontends talk directly to auth, database, and worker, there is <strong>one front door</strong>. This means:
+<ul>
+  <li>Frontend code is simpler — only one base URL to remember</li>
+  <li>CORS is configured in one place</li>
+  <li>Rate limiting, logging, and validation happen centrally</li>
+  <li>The internal services (auth, worker) can be changed without affecting frontend code</li>
+</ul>
+</div>
+
+<h3>Key Endpoints</h3>
+<table>
+<tr><th>Endpoint</th><th>Method</th><th>Auth Required</th><th>Purpose</th></tr>
+<tr><td><code>/api/candidates</code></td><td>GET</td><td>Employer JWT</td><td>List candidates with assignments</td></tr>
+<tr><td><code>/api/assessments</code></td><td>GET/POST</td><td>Employer JWT</td><td>List/create assessments</td></tr>
+<tr><td><code>/api/submissions</code></td><td>POST</td><td>Session JWT</td><td>Submit test answers</td></tr>
+<tr><td><code>/api/questions</code></td><td>GET</td><td>Session JWT</td><td>Fetch questions (answers hidden)</td></tr>
+<tr><td><code>/api/events</code></td><td>GET</td><td>Employer JWT</td><td>SSE stream for real-time updates</td></tr>
+<tr><td><code>/api/scores</code></td><td>GET</td><td>Employer JWT</td><td>List evaluated scores</td></tr>
+<tr><td><code>/api/audit-logs</code></td><td>GET</td><td>Employer JWT</td><td>Security audit trail</td></tr>
+</table>
+
+<h2 id="sec-4">4. Auth Service — The Security Office</h2>
+
+<h3>What It Does</h3>
+<ul>
+  <li><strong>Login / Register</strong> — checks passwords using <code>bcrypt</code> (a slow, secure hashing algorithm), issues JWT tokens</li>
+  <li><strong>JWT Management</strong> — creates access tokens (short-lived, ~15 minutes) and refresh tokens (longer-lived, ~7 days)</li>
+  <li><strong>Cross-App Tokens</strong> — when a candidate clicks "Start Assessment," creates a special one-time token so the Candidate Portal can safely hand the user over to the Assessment Engine</li>
+  <li><strong>Token Verification</strong> — other services (like API Gateway) ask this service: "Is this token valid?"</li>
+  <li><strong>Token Blocklist</strong> — stores revoked tokens in Redis so logged-out users cannot reuse old tokens</li>
+  <li><strong>Audit Logging</strong> — records every login, logout, token mint, and security event</li>
+</ul>
+
+<h3>Three Types of JWT Tokens</h3>
+<table>
+<tr><th>Token Type</th><th>Who Has It</th><th>Purpose</th><th>Lifetime</th></tr>
+<tr><td><strong>Access Token</strong></td><td>Candidate / Employer</td><td>General API access — calling candidates, assessments, scores</td><td>Short (~15 min)</td></tr>
+<tr><td><strong>Refresh Token</strong></td><td>Candidate / Employer</td><td>Get a new access token without re-entering password</td><td>Longer (~7 days)</td></tr>
+<tr><td><strong>Assessment Session Token</strong></td><td>Candidate (during test)</td><td>Access test questions and submit answers — separate from main login</td><td>Very short (~5 min)</td></tr>
+</table>
+
+<h3>Cross-App Token Flow (Security-Critical)</h3>
+<p>When a candidate clicks "Start Assessment" in the Candidate Portal:</p>
+<ol>
+  <li><strong>Portal</strong> (already logged in with access JWT) asks Auth Service for a cross-app token</li>
+  <li><strong>Auth Service</strong> creates an <strong>opaque random token</strong> (256-bit cryptographically secure random), stores it in Redis with a <strong>120-second expiry</strong>, and cryptographically binds it to the candidate ID + assessment ID using HMAC-SHA256</li>
+  <li><strong>Portal</strong> redirects the browser to Assessment Engine with <code>?token=abc123</code></li>
+  <li><strong>Assessment Engine</strong> sends the token to Auth Service</li>
+  <li><strong>Auth Service</strong> validates the HMAC binding, checks Redis (atomic GET+DELETE for single-use), and returns a fresh assessment session JWT</li>
+  <li><strong>Assessment Engine</strong> uses that JWT to fetch questions from the API Gateway</li>
+</ol>
+
+<div class="box good">
+<strong>Why opaque tokens instead of JWTs for cross-app?</strong><br>
+JWTs are stateless and cannot be instantly revoked. For a <strong>single-use</strong> token, the server needs to remember whether it was used. Opaque tokens + Redis backing is the only correct architectural choice here — it guarantees single-use, instant expiry, and no replay attacks.
+</div>
+
+<h2 id="sec-5">5. Evaluation Worker — The Background Grader</h2>
+
+<h3>What It Does</h3>
+<ul>
+  <li><strong>Runs continuously</strong> in the background — no public port, users never talk to it directly</li>
+  <li><strong>Listens to Redis queue</strong> — waits for "grade this test" messages on the <code>evaluation:queue</code> list</li>
+  <li><strong>Scores answers</strong> — queries the database for the candidate's responses and the correct answers, compares them</li>
+  <li><strong>Updates results</strong> — writes the score, percentage, correct count, and status back to PostgreSQL</li>
+  <li><strong>Publishes completion</strong> — sends a message to Redis pub/sub so the API Gateway can notify dashboards</li>
+  <li><strong>Handles failures</strong> — retries up to 3 times with exponential backoff, then marks as dead-letter</li>
+  <li><strong>Recovery mode</strong> — periodically scans for submitted tests that never got graded (handles Redis downtime)</li>
+</ul>
+
+<h3>Why It's Separate</h3>
+<div class="box">
+Grading is <strong>unpredictable</strong> — 10 candidates might submit at the same time, or a complex assessment might take longer to score. By putting grading in a background worker:
+<ul>
+  <li>The API Gateway returns "Submission received!" instantly — the candidate isn't waiting</li>
+  <li>The worker can crash and resume without losing data (jobs stay in Redis)</li>
+  <li>You can run multiple workers in parallel if needed (scale horizontally)</li>
+</ul>
+</div>
+
+<h3>Worker Retry Logic</h3>
+<table>
+<tr><th>Scenario</th><th>Behavior</th></tr>
+<tr><td>Worker crashes mid-grading</td><td>Job stays in Redis, picked up by another worker on restart</td></tr>
+<tr><td>Database timeout</td><td>Retries with exponential backoff (max 3 attempts)</td></tr>
+<tr><td>No responses found (empty test)</td><td>Marks session as EVALUATED with 0% — no infinite retry loop</td></tr>
+<tr><td>Redis pub/sub fails</td><td>Score is still saved; dashboard may lag but data is safe</td></tr>
+<tr><td>Duplicate submission</td><td>Idempotency check prevents double-scoring</td></tr>
+</table>
+
+<h2 id="sec-6">6. Shared Layer (Database, Models, Email)</h2>
+
+<p>All three services share a common <code>services/shared/</code> folder containing:</p>
+
+<table>
+<tr><th>File</th><th>Purpose</th><th>Why Shared?</th></tr>
+<tr><td><code>shared/database.py</code></td><td>Creates the async SQLAlchemy engine, manages connection pooling, handles DNS fallback, provides <code>get_db()</code> dependency</td><td>All services connect to the same database with identical settings</td></tr>
+<tr><td><code>shared/models.py</code></td><td>Defines all 11 database tables using SQLAlchemy ORM — Users, Assessments, Questions, TestSessions, SessionResponses, etc.</td><td>Ensures all services use the exact same table schema and relationships</td></tr>
+<tr><td><code>shared/email.py</code></td><td>Sends assignment invitations and result notifications via SMTP</td><td>Both API Gateway (when assigning) and Worker (when grading) send emails</td></tr>
+</table>
+
+<h3>Database Connection Setup</h3>
+<p>The <code>database.py</code> file does more than just connect:</p>
+<ul>
+  <li><strong>Connection Pooling</strong> — keeps 5 warm connections, can expand to 15 max (<code>pool_size=5, max_overflow=10</code>)</li>
+  <li><strong>Auto-Retry</strong> — if the initial connection fails (DNS hiccup), retries up to 10 times with exponential backoff</li>
+  <li><strong>DNS Fallback</strong> — if your system's DNS can't resolve the Neon database hostname, it falls back to Google DNS (8.8.8.8) and patches Python's socket resolver so future connections work too</li>
+  <li><strong>Pool Pre-Ping</strong> — checks connections before using them, so stale connections are discarded automatically</li>
+</ul>
+
+<h2 id="sec-7">7. Database Design (PostgreSQL + SQLAlchemy)</h2>
+
+<h3>Technology Stack</h3>
+<table>
+<tr><th>Layer</th><th>Technology</th><th>Why This One?</th></tr>
+<tr><td>Database Server</td><td><strong>Neon PostgreSQL</strong> (cloud)</td><td>Serverless auto-scaling; generous free tier; connection pooling built-in; works from anywhere with a URL</td></tr>
+<tr><td>Database Driver</td><td><strong>asyncpg</strong></td><td>Fastest PostgreSQL driver for Python; native async support</td></tr>
+<tr><td>ORM</td><td><strong>SQLAlchemy 2.0</strong></td><td>Industry standard; full async support; mature migration tool (Alembic); complete query control</td></tr>
+</table>
+
+<h3>The 11 Tables</h3>
+<table>
+<tr><th>Table</th><th>Purpose</th><th>Real-World Analogy</th></tr>
+<tr><td><code>users</code></td><td>Candidates & employers (bcrypt passwords, roles, verification)</td><td>The school's student and staff register</td></tr>
+<tr><td><code>assessments</code></td><td>Test definitions (title, category, duration, pass mark, publish status)</td><td>The exam paper template</td></tr>
+<tr><td><code>questions</code></td><td>MCQ questions (text, options, correct answer index, points, difficulty)</td><td>The actual questions on the paper</td></tr>
+<tr><td><code>assessment_assignments</code></td><td>Links candidates to tests they are allowed to take, with due dates</td><td>The hall ticket</td></tr>
+<tr><td><code>test_sessions</code></td><td>One candidate taking one test (status, score, time taken, timestamps)</td><td>The answer sheet</td></tr>
+<tr><td><code>session_responses</code></td><td>Each individual answer chosen by the candidate per question</td><td>The circles filled in on the answer sheet</td></tr>
+<tr><td><code>otp_tokens</code></td><td>One-time password tokens for session verification</td><td>A single-use scratch card</td></tr>
+<tr><td><code>refresh_tokens</code></td><td>Persistent refresh tokens for session renewal without re-login</td><td>A membership renewal coupon</td></tr>
+<tr><td><code>pending_evaluations</code></td><td>Backup queue of tests needing grading when Redis is down</td><td>A "to be graded" pile on the teacher's desk</td></tr>
+<tr><td><code>audit_logs</code></td><td>Complete event log (logins, submissions, admin actions, evaluations)</td><td>The security camera footage</td></tr>
+<tr><td><code>department_benchmarks</code></td><td>Performance stats by department/category for analytics</td><td>The school's annual report card</td></tr>
+</table>
+
+<h3>Smart Indexing (Making Queries Fast)</h3>
+<p>The database has indexes on columns that are queried frequently:</p>
+<ul>
+  <li><code>users(email)</code> — every login looks up by email</li>
+  <li><code>test_sessions(candidate_id, assessment_id, application_status)</code> — dashboard filtering</li>
+  <li><code>session_responses(session_id)</code> — worker needs all answers for one test</li>
+  <li><code>audit_logs(user_id, event_type, created_at)</code> — audit trail searches</li>
+</ul>
+
+<h2 id="sec-8">8. Communication Patterns</h2>
+
+<h3>How Services Talk to Each Other</h3>
+
+<table>
+<tr><th>Pattern</th><th>Used Between</th><th>How It Works</th></tr>
+<tr><td><strong>HTTP Requests</strong></td><td>Gateway ↔ Auth</td><td>Gateway sends the JWT token to Auth Service over HTTP; Auth responds with decoded user info</td></tr>
+<tr><td><strong>Redis List (Queue)</strong></td><td>Gateway → Worker</td><td>Gateway pushes a JSON job to <code>evaluation:queue</code>; Worker blocks on <code>BRPOP</code> waiting for jobs</td></tr>
+<tr><td><strong>Redis Pub/Sub</strong></td><td>Worker → Gateway</td><td>Worker publishes "grading done" to <code>scores</code> channel; Gateway subscribes and forwards via SSE</td></tr>
+<tr><td><strong>Redis Key-Value</strong></td><td>Auth ↔ Auth</td><td>Stores revoked tokens (blocklist) and cross-app tokens with 120-second TTL</td></tr>
+<tr><td><strong>PostgreSQL</strong></td><td>All ↔ All</td><td>All services read/write from the same database — the single source of truth</td></tr>
+</table>
+
+<h3>Server-Sent Events (SSE) — Real-Time Dashboard Updates</h3>
+<p>The Employer Dashboard shows a "LIVE" badge and updates instantly when candidates submit tests. This uses <strong>Server-Sent Events (SSE)</strong>:</p>
+<ol>
+  <li>Dashboard opens a long-lived HTTP connection to <code>GET /api/events</code></li>
+  <li>Gateway subscribes to the Redis <code>scores</code> channel</li>
+  <li>When Worker finishes grading, it publishes a message to Redis</li>
+  <li>Gateway receives the message and writes it to the SSE stream</li>
+  <li>Dashboard receives the event and updates the UI instantly</li>
+</ol>
+
+<div class="box good">
+<strong>Why SSE instead of WebSockets?</strong><br>
+SSE is perfect here because:
+<ul>
+  <li>The flow is <strong>one-way</strong> (server → dashboard only)</li>
+  <li>Works over standard HTTP — no complex handshake</li>
+  <li>Easy authentication via standard headers</li>
+  <li>Auto-reconnects in the browser if connection drops</li>
+</ul>
+WebSockets would be overkill for this use case.
+</div>
+
+<h2 id="sec-9">9. Security Architecture</h2>
+
+<h3>Password Security</h3>
+<ul>
+  <li>Passwords are hashed with <strong>bcrypt</strong> — a deliberately slow algorithm that makes brute-force attacks impractical</li>
+  <li>Plain-text passwords are never stored or logged</li>
+</ul>
+
+<h3>JWT Token Scoping</h3>
+<p>Three different token types exist, each validated separately:</p>
+<ul>
+  <li><strong>Access tokens</strong> — can call general APIs</li>
+  <li><strong>Assessment session tokens</strong> — can only fetch questions and submit answers</li>
+  <li><strong>Refresh tokens</strong> — can only exchange for new access tokens</li>
+</ul>
+
+<h3>Correct Answer Hiding</h3>
+<p>The API Gateway's <code>/api/questions</code> endpoint queries the database but <strong>explicitly excludes</strong> the <code>correct_option</code> field from the response. Candidates can never see the correct answers through the API.</p>
+
+<h3>Audit Trail</h3>
+<p>Every significant action is logged:</p>
+<ul>
+  <li>Login, logout, failed login attempts</li>
+  <li>Assessment started, submitted, timed out</li>
+  <li>Evaluation completed/failed</li>
+  <li>Admin actions (create user, delete user, assign assessment)</li>
+</ul>
+
+<h3>Timing-Attack Safety</h3>
+<p>All token comparisons use <code>hmac.compare_digest()</code>, which takes the same amount of time regardless of how many characters match. This prevents attackers from guessing tokens by measuring response times.</p>
+
+<h2 id="sec-10">10. Data Flow Example: Candidate Takes a Test</h2>
+
+<div class="diagram">
+STEP 1: LOGIN
+Candidate Portal → POST /auth/login → Auth Service
+Auth Service → checks bcrypt password → returns JWT access + refresh tokens
+
+STEP 2: VIEW DASHBOARD
+Candidate Portal → GET /api/candidates → API Gateway (with JWT)
+API Gateway → queries PostgreSQL → returns assigned assessments
+
+STEP 3: CLICK "START ASSESSMENT"
+Candidate Portal → POST /auth/cross-app-token → Auth Service
+Auth Service → creates opaque token in Redis (120s TTL, HMAC-bound)
+Portal → redirects browser to Assessment Engine ?token=abc123
+
+STEP 4: LOAD TEST
+Assessment Engine → POST /auth/redeem-cross-app → Auth Service
+Auth Service → validates token (atomic GET+DELETE) → returns session JWT
+Engine → GET /api/questions → Gateway (with session JWT)
+Gateway → queries PostgreSQL (hiding correct answers) → returns questions
+
+STEP 5: SUBMIT ANSWERS
+Engine → POST /api/submissions → Gateway
+Gateway → saves answers to PostgreSQL
+Gateway → pushes job to Redis evaluation queue
+Gateway → returns: "Submitted successfully!"
+
+STEP 6: BACKGROUND GRADING (async)
+Worker → picks up job from Redis
+Worker → queries session_responses + questions from PostgreSQL
+Worker → compares answers, computes score
+Worker → updates test_session with score + status=EVALUATED
+Worker → publishes "EVALUATION_COMPLETED" to Redis pub/sub
+
+STEP 7: REAL-TIME UPDATE
+Gateway (subscribed to pub/sub) → receives completion event
+Gateway → forwards via SSE to Employer Dashboard
+Dashboard → updates candidate score instantly without refresh
+</div>
+
+<h2 id="sec-11">11. Technology Choices & Why They Were Used</h2>
+
+<table>
+<tr><th>Technology</th><th>What It Does</th><th>Why It Was Chosen</th><th>Alternatives Rejected</th></tr>
+<tr><td><strong>FastAPI</strong></td><td>Python web framework for APIs</td><td>Native async/await; automatic OpenAPI docs; Pydantic validation; extremely fast to develop</td><td>Django (too heavy), Flask (no native async), Node.js/Express (different ecosystem)</td></tr>
+<tr><td><strong>Python 3.11+</strong></td><td>Programming language</td><td>Rich async ecosystem; familiar to team; excellent libraries for data processing</td><td>Node.js, Go, Java</td></tr>
+<tr><td><strong>SQLAlchemy 2.0</strong></td><td>Database ORM</td><td>Industry standard; full async support; mature migrations via Alembic; complete query control</td><td>Prisma (Python support limited), Tortoise ORM (less mature)</td></tr>
+<tr><td><strong>asyncpg</strong></td><td>PostgreSQL driver</td><td>Fastest Python PostgreSQL driver; native async; benchmark-proven</td><td>psycopg2 (sync only), aiopg (slower)</td></tr>
+<tr><td><strong>Neon PostgreSQL</strong></td><td>Cloud database</td><td>Serverless auto-scaling; free tier; built-in connection pooling; no local server needed</td><td>Local Postgres (needs Docker), AWS RDS (overkill), Supabase (different features)</td></tr>
+<tr><td><strong>Redis / Valkey</strong></td><td>In-memory data store</td><td>Triple duty: task queue + pub/sub messaging + temporary token storage; extremely fast</td><td>RabbitMQ (complex), Kafka (overkill), AWS SQS (vendor lock-in)</td></tr>
+<tr><td><strong>PyJWT + bcrypt</strong></td><td>Token creation + password hashing</td><td>bcrypt is the gold standard for password hashing; PyJWT is widely tested</td><td>Argon2 (good but less common), plain JWT libraries</td></tr>
+<tr><td><strong>SSE</strong></td><td>Real-time updates</td><td>One-way server→client flow fits dashboard perfectly; no WebSocket handshake needed</td><td>WebSockets (overkill for one-way), Long-polling (inefficient)</td></tr>
+<tr><td><strong>Pydantic v2</strong></td><td>Data validation</td><td>Native to FastAPI; automatic request/response validation; clear error messages</td><td>Marshmallow, Cerberus</td></tr>
+<tr><td><strong>structlog</strong></td><td>Structured logging</td><td>Outputs JSON logs with context; industry standard for observability; async-safe</td><td>Standard logging (unstructured), loguru</td></tr>
+</table>
+
+<h2 id="sec-12">12. Project Folder Structure</h2>
+
+<div class="diagram">
+assessly-platform/
+├── apps/
+│   ├── candidate-portal/       ← Candidate website (Next.js)
+│   ├── assessment-engine/      ← Test-taking app (Next.js)
+│   └── employer-dashboard/     ← Admin control room (Next.js)
+│
+├── services/
+│   ├── api-gateway/
+│   │   ├── main.py             ← All API endpoints, SSE, routing
+│   │   ├── config.py           ← Environment settings
+│   │   └── test_gateway.py     ← Unit tests
+│   │
+│   ├── auth-service/
+│   │   ├── main.py             ← Login, JWT, cross-app tokens
+│   │   ├── config.py           ← JWT secrets, expiry settings
+│   │   └── test_auth.py        ← Unit tests
+│   │
+│   ├── evaluation-worker/
+│   │   └── main.py             ← Background scoring pipeline
+│   │
+│   └── shared/
+│       ├── database.py         ← Async SQLAlchemy engine + connection pool
+│       ├── models.py           ← All 11 database table definitions
+│       └── email.py            ← SMTP email utilities
+│
+├── packages/
+│   ├── shared-db/              ← Database migrations (Alembic)
+│   ├── shared-types/           ← TypeScript contracts
+│   └── shared-ui/              ← Reusable React components
+│
+├── docs/
+│   ├── plan.md                 ← Implementation plan
+│   ├── schema-design.md        ← Database design rationale
+│   ├── api-design.md           ← API endpoint contracts
+│   ├── cross-app-token.md      ← Security mechanism deep-dive
+│   ├── pipeline-design.md      ← Worker retry + idempotency
+│   └── deployment-design.md    ← Cloud deployment guide
+│
+├── docker-compose.yml          ← Local orchestration (Redis + services)
+├── start-all.py                ← One-command local startup
+└── README.md                   ← Full documentation
+</div>
+
+<h2>Summary</h2>
+<p>The Assessly backend is designed as a <strong>distributed, async-first system</strong> with clear separation of concerns:</p>
+<ul>
+  <li><strong>API Gateway</strong> handles all ingress — validation, routing, real-time streams</li>
+  <li><strong>Auth Service</strong> isolates security — JWTs, tokens, password hashing</li>
+  <li><strong>Evaluation Worker</strong> handles background processing — grading, retries, recovery</li>
+  <li><strong>Redis</strong> acts as the nervous system — queue, pub/sub, temporary storage</li>
+  <li><strong>PostgreSQL</strong> is the permanent record — all data, relationships, audit trail</li>
+</ul>
+<p>Every technology was chosen for a specific reason: performance (asyncpg, FastAPI), reliability (Redis queue with retries, Neon auto-scaling), security (bcrypt, HMAC-bound tokens, audit logs), and developer velocity (Pydantic, SQLAlchemy, automatic API docs).</p>
+
+<div class="box good">
+  <strong>Key Takeaway:</strong> The architecture separates fast user-facing operations (Gateway) from slow background work (Worker), isolates security (Auth), and uses Redis as a lightweight message bus to connect everything without tight coupling.
+</div>
+
+</div>
+</body>
+</html>
