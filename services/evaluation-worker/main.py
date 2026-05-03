@@ -76,8 +76,31 @@ async def process_evaluation(application_id: str, db: AsyncSession, redis_client
     rows = result.all()
 
     if not rows:
-        logger.warning("no_responses_found", application_id=application_id)
-        raise Exception(f"No responses found for session {application_id}")
+        logger.warning("no_responses_found_skipping", application_id=application_id)
+        # Mark as evaluated with 0% to prevent infinite retry loops
+        await db.execute(
+            update(TestSession)
+            .where(TestSession.id == app_uuid)
+            .values(
+                application_status=ApplicationStatus.EVALUATED,
+                score_percentage=0,
+                total_questions=total_questions,
+                correct_count=0,
+                total_answered=0,
+                evaluated_at=datetime.utcnow(),
+                worker_id=WORKER_ID
+            )
+        )
+        await db.commit()
+        # Remove from pending_evaluations if exists
+        pending_result = await db.execute(
+            select(PendingEvaluation).where(PendingEvaluation.session_id == app_uuid)
+        )
+        pending = pending_result.scalar_one_or_none()
+        if pending:
+            await db.delete(pending)
+            await db.commit()
+        return {"status": "skipped_no_responses", "session_id": application_id}
 
     # 5. Compute score
     total_answered = len(rows)
