@@ -301,49 +301,39 @@ function CandidatesContent() {
         </div>
       )}
 
-      <div className="rounded-2xl bg-white shadow-sm">
-        <table className="w-full text-left text-sm">
+      <div className="rounded-2xl bg-white shadow-sm overflow-x-auto">
+        <table className="w-full min-w-[800px] text-left text-sm">
           <thead>
             <tr className="border-b text-xs uppercase tracking-wide text-gray-500">
               <th className="px-6 py-4">Candidate</th>
               <th className="px-6 py-4">Status</th>
               <th className="px-6 py-4">Progress</th>
+              <th className="px-6 py-4">Assigned Assessments</th>
               <th className="px-6 py-4">Score</th>
               <th className="px-6 py-4">Verified</th>
-              <th className="px-6 py-4">Actions</th>
+              <th className="px-6 py-4 text-center">Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
+                <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
                   <div className="mx-auto h-6 w-6 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" />
                 </td>
               </tr>
             )}
             {!loading && filtered.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
+                <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
                   No candidates found.
                 </td>
               </tr>
             )}
             {filtered.map((c) => (
               <tr key={c.id} className="border-b last:border-0 transition-colors hover:bg-indigo-50">
-                <td className="px-6 py-4 relative group">
+                <td className="px-6 py-4">
                   <div className="font-medium">{c.full_name}</div>
                   <div className="text-gray-500">{c.email}</div>
-                  {c.assigned_assessments && c.assigned_assessments.length > 0 && (
-                    <div className="absolute left-6 top-full z-10 mt-1 hidden w-max max-w-xs rounded-lg bg-gray-900 px-3 py-2 text-xs text-white shadow-lg group-hover:block">
-                      <div className="font-semibold mb-1">Assigned Assessments:</div>
-                      <ul className="list-disc pl-4">
-                        {c.assigned_assessments.map((title, i) => (
-                          <li key={i}>{title}</li>
-                        ))}
-                      </ul>
-                      <div className="absolute -top-1 left-4 h-2 w-2 rotate-45 bg-gray-900" />
-                    </div>
-                  )}
                 </td>
                 <td className="px-6 py-4">{statusBadge(c.application_status)}</td>
                 <td className="px-6 py-4">
@@ -364,6 +354,31 @@ function CandidatesContent() {
                   </div>
                 </td>
                 <td className="px-6 py-4">
+                  <div className="group relative inline-block cursor-default">
+                    {c.assigned_assessments && c.assigned_assessments.length > 0 ? (
+                      <>
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                            <path fillRule="evenodd" d="M4 5a2 2 0 012-2 1 1 0 000 2H6a2 2 0 00-2 2v6a2 2 0 002 2h2a1 1 0 100-2H6V7h5a1 1 0 011-1h2a1 1 0 011 1v5h1V9a3 3 0 00-3-3H4z" clipRule="evenodd" />
+                          </svg>
+                          {c.assigned_assessments.length} Assessment{c.assigned_assessments.length !== 1 ? 's' : ''}
+                        </span>
+                        <div className="pointer-events-none absolute left-1/2 top-full z-50 mt-2 w-max max-w-xs -translate-x-1/2 rounded-lg bg-gray-900 px-3 py-2 text-xs text-white shadow-lg opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+                          <div className="font-semibold mb-1">Assigned Assessments:</div>
+                          <ul className="list-disc pl-4">
+                            {c.assigned_assessments.map((title, i) => (
+                              <li key={i}>{title}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </div>
+                </td>
+                <td className="px-6 py-4">
                   {c.score_percentage !== null ? (
                     <span className="font-semibold">{c.score_percentage != null ? `${c.score_percentage.toFixed(1)}%` : '—'}</span>
                   ) : (
@@ -377,13 +392,15 @@ function CandidatesContent() {
                     <span className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-500">NO</span>
                   )}
                 </td>
-                <td className="px-6 py-4">
+                <td className="px-6 py-4 text-center">
                   <button
                     onClick={() => handleDeleteUser(c.id)}
-                    className="text-sm text-red-500 hover:text-red-700"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600"
                     title="Delete candidate"
                   >
-                    🗑️ Delete
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                    </svg>
                   </button>
                 </td>
               </tr>
