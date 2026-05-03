@@ -94,7 +94,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
       </aside>
 
       {/* Main */}
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-hidden">
         {children}
       </main>
     </div>
