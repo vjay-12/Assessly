@@ -306,55 +306,57 @@ function CandidatesContent() {
         <table className="w-full min-w-[800px] text-left text-sm">
           <thead>
             <tr className="border-b text-xs uppercase tracking-wide text-gray-500">
-              <th className="px-6 py-4">Candidate</th>
-              <th className="px-6 py-4">Status</th>
-              <th className="px-6 py-4">Progress</th>
-              <th className="px-6 py-4">Assigned Assessments</th>
-              <th className="px-6 py-4">Score</th>
-              <th className="px-6 py-4">Verified</th>
-              <th className="px-6 py-4 text-center">Actions</th>
+              <th className="px-6 py-4 align-middle">Candidate</th>
+              <th className="px-6 py-4 align-middle">Status</th>
+              <th className="px-6 py-4 align-middle">Progress</th>
+              <th className="px-6 py-4 align-middle">Assigned Assessments</th>
+              <th className="px-6 py-4 align-middle">Score</th>
+              <th className="px-6 py-4 align-middle">Verified</th>
+              <th className="px-6 py-4 text-center align-middle">Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
+                <td colSpan={7} className="px-6 py-12 text-center align-middle text-gray-400">
                   <div className="mx-auto h-6 w-6 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" />
                 </td>
               </tr>
             )}
             {!loading && filtered.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
+                <td colSpan={7} className="px-6 py-12 text-center align-middle text-gray-400">
                   No candidates found.
                 </td>
               </tr>
             )}
             {filtered.map((c) => (
               <tr key={c.id} className="border-b last:border-0 transition-colors hover:bg-indigo-50">
-                <td className="px-6 py-4">
+                <td className="px-6 py-4 align-middle">
                   <div className="font-medium">{c.full_name}</div>
                   <div className="text-gray-500">{c.email}</div>
                 </td>
-                <td className="px-6 py-4">{statusBadge(c.application_status)}</td>
-                <td className="px-6 py-4">
-                  <div className="h-2 w-32 rounded-full bg-gray-100">
-                    <div
-                      className="h-full rounded-full bg-indigo-500"
-                      style={{
-                        width:
-                          c.application_status === 'evaluated'
-                            ? '100%'
-                            : c.application_status === 'submitted'
-                            ? '75%'
-                            : c.application_status === 'attempted'
-                            ? '50%'
-                            : '25%',
-                      }}
-                    />
+                <td className="px-6 py-4 align-middle">{statusBadge(c.application_status)}</td>
+                <td className="px-6 py-4 align-middle">
+                  <div className="flex items-center">
+                    <div className="h-2 w-32 rounded-full bg-gray-100">
+                      <div
+                        className="h-full rounded-full bg-indigo-500"
+                        style={{
+                          width:
+                            c.application_status === 'evaluated'
+                              ? '100%'
+                              : c.application_status === 'submitted'
+                              ? '75%'
+                              : c.application_status === 'attempted'
+                              ? '50%'
+                              : '25%',
+                        }}
+                      />
+                    </div>
                   </div>
                 </td>
-                <td className="px-6 py-4">
+                <td className="px-6 py-4 align-middle">
                   <div className="group relative inline-block cursor-default">
                     {c.assigned_assessments && c.assigned_assessments.length > 0 ? (
                       <>
@@ -379,21 +381,21 @@ function CandidatesContent() {
                     )}
                   </div>
                 </td>
-                <td className="px-6 py-4">
+                <td className="px-6 py-4 align-middle">
                   {c.score_percentage !== null ? (
                     <span className="font-semibold">{c.score_percentage != null ? `${c.score_percentage.toFixed(1)}%` : '—'}</span>
                   ) : (
                     <span className="text-gray-400">—</span>
                   )}
                 </td>
-                <td className="px-6 py-4">
+                <td className="px-6 py-4 align-middle">
                   {c.is_verified ? (
                     <span className="rounded-full bg-green-50 px-2 py-1 text-xs font-semibold text-green-700">YES</span>
                   ) : (
                     <span className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-500">NO</span>
                   )}
                 </td>
-                <td className="px-6 py-4 text-center">
+                <td className="px-6 py-4 text-center align-middle">
                   <button
                     onClick={() => handleDeleteUser(c.id)}
                     className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-red-500 hover:bg-red-50 hover:text-red-700"
